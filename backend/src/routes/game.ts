@@ -1,0 +1,335 @@
+import { Router, Request, Response } from 'express';
+import { body, param, validationResult } from 'express-validator';
+import { gameEngine } from '../services/gameEngine';
+import { AuthRequest } from '../middleware/auth';
+import { CustomError, asyncHandler } from '../middleware/errorHandler';
+import { HTTP_STATUS, ERROR_MESSAGES, GENRES, IMAGE_STYLES, STYLE_PREFERENCES } from '../../../shared/constants';
+import { NewGameRequest, TurnRequest, SaveGameRequest } from '../../../shared/types';
+
+const router = Router();
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     NewGameRequest:
+ *       type: object
+ *       required:
+ *         - genre
+ *         - style_preference
+ *         - image_style
+ *       properties:
+ *         genre:
+ *           type: string
+ *           enum: [fantasy, sci-fi, horror, modern]
+ *         style_preference:
+ *           type: string
+ *           enum: [detailed, concise]
+ *         image_style:
+ *           type: string
+ *           enum: [fantasy_art, comic_book, painterly]
+ */
+
+/**
+ * @swagger
+ * /api/new-game:
+ *   post:
+ *     summary: Create a new game session
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/NewGameRequest'
+ *     responses:
+ *       201:
+ *         description: New game session created
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/new-game', [
+  body('genre')
+    .isIn(Object.values(GENRES))
+    .withMessage('Invalid genre'),
+  body('style_preference')
+    .isIn(Object.values(STYLE_PREFERENCES))
+    .withMessage('Invalid style preference'),
+  body('image_style')
+    .isIn(Object.values(IMAGE_STYLES))
+    .withMessage('Invalid image style'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const newGameRequest: NewGameRequest = req.body;
+  const result = await gameEngine.createNewGame(newGameRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/turn:
+ *   post:
+ *     summary: Process a player turn
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - session_id
+ *               - player_input
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *               player_input:
+ *                 type: string
+ *                 maxLength: 500
+ *               context:
+ *                 type: object
+ *                 properties:
+ *                   previous_turn_id:
+ *                     type: string
+ *                   retry_count:
+ *                     type: integer
+ *                     default: 0
+ *     responses:
+ *       200:
+ *         description: Turn processed successfully
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Session not found
+ */
+router.post('/turn', [
+  body('session_id')
+    .notEmpty()
+    .withMessage('Session ID is required'),
+  body('player_input')
+    .isLength({ min: 1, max: 500 })
+    .withMessage('Player input must be between 1 and 500 characters'),
+  body('context.retry_count')
+    .optional()
+    .isInt({ min: 0, max: 3 })
+    .withMessage('Retry count must be between 0 and 3'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const turnRequest: TurnRequest = {
+    session_id: req.body.session_id,
+    player_input: req.body.player_input,
+    context: {
+      previous_turn_id: req.body.context?.previous_turn_id,
+      retry_count: req.body.context?.retry_count || 0
+    }
+  };
+
+  const result = await gameEngine.processTurn(turnRequest, req.user.id);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/game/{sessionId}:
+ *   get:
+ *     summary: Load an existing game session
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Game session data
+ *       404:
+ *         description: Session not found
+ */
+router.get('/game/:sessionId', [
+  param('sessionId')
+    .notEmpty()
+    .withMessage('Session ID is required'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const result = await gameEngine.loadGame(req.params.sessionId, req.user.id);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/save-game:
+ *   post:
+ *     summary: Save current game progress
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - session_id
+ *               - save_name
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *               save_name:
+ *                 type: string
+ *                 maxLength: 50
+ *     responses:
+ *       201:
+ *         description: Game saved successfully
+ *       400:
+ *         description: Invalid save data
+ *       404:
+ *         description: Session not found
+ */
+router.post('/save-game', [
+  body('session_id')
+    .notEmpty()
+    .withMessage('Session ID is required'),
+  body('save_name')
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Save name must be between 1 and 50 characters')
+    .matches(/^[a-zA-Z0-9\s\-_]+$/)
+    .withMessage('Save name contains invalid characters'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const saveRequest: SaveGameRequest = {
+    session_id: req.body.session_id,
+    save_name: req.body.save_name
+  };
+
+  const result = await gameEngine.saveGame(saveRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/saved-games:
+ *   get:
+ *     summary: Get list of saved games
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of saved games
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 saves:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       save_id:
+ *                         type: string
+ *                       save_name:
+ *                         type: string
+ *                       session_id:
+ *                         type: string
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                       turn_count:
+ *                         type: integer
+ *                       preview_image:
+ *                         type: string
+ */
+router.get('/saved-games', asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const result = await gameEngine.getSavedGames(req.user.id);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/sessions:
+ *   get:
+ *     summary: Get user's active game sessions
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of active sessions
+ */
+router.get('/sessions', asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  // This would typically return a summary of active sessions
+  // For now, we'll implement a basic version
+  const { GameSession } = await import('../models');
+  
+  const sessions = await GameSession.find({ user_id: req.user.id })
+    .select('session_id metadata.last_played metadata.total_turns world_state.location')
+    .sort({ 'metadata.last_played': -1 })
+    .limit(10);
+
+  const result = sessions.map(session => ({
+    session_id: session.session_id,
+    last_played: session.metadata.last_played.toISOString(),
+    total_turns: session.metadata.total_turns,
+    current_location: session.world_state.location
+  }));
+
+  res.status(HTTP_STATUS.OK).json({ sessions: result });
+}));
+
+export default router;
