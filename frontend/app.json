@@ -28,11 +28,15 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.aidungeon.mobile",
+      "versionCode": 1,
       "permissions": [
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
-        "WAKE_LOCK"
-      ]
+        "WAKE_LOCK",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
+      "allowBackup": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -46,6 +50,12 @@
           "color": "#8b5cf6"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "bb6f4f16-9339-44ca-8c55-7fa9fa4b0f17"
+      }
+    }
   }
 }
