@@ -99,6 +99,27 @@ class OpenAIService {
       let parsedResponse: NarrationResponse;
       try {
         parsedResponse = JSON.parse(aiResponse);
+        
+        // Validate and sanitize the response structure
+        if (!parsedResponse.narration) {
+          parsedResponse.narration = aiResponse;
+        }
+        if (!parsedResponse.image_prompt) {
+          parsedResponse.image_prompt = `${context.worldState.location}, ${context.genre} scene`;
+        }
+        if (!Array.isArray(parsedResponse.quick_actions)) {
+          parsedResponse.quick_actions = ['Look around', 'Continue'];
+        }
+        if (!parsedResponse.state_changes) {
+          parsedResponse.state_changes = {};
+        }
+        
+        // Ensure inventory in state_changes is always an array if present
+        if (parsedResponse.state_changes.inventory && !Array.isArray(parsedResponse.state_changes.inventory)) {
+          logger.warn('AI returned non-array inventory, converting to array:', parsedResponse.state_changes.inventory);
+          parsedResponse.state_changes.inventory = [];
+        }
+        
       } catch (parseError) {
         logger.error('Failed to parse AI response:', aiResponse);
         // Fallback response if JSON parsing fails
@@ -220,7 +241,7 @@ Create immersive second-person narration that:
 - Responds naturally to player actions with vivid detail
 - Maintains world consistency and logical consequences
 - Provides rich sensory descriptions (sight, sound, smell, touch)
-- Keeps content appropriate (PG-13 rating)
+- Allows mature themes and content (R-rated) including violence, adult themes, and complex moral situations
 - Moves the story forward meaningfully
 - Suggests 2-3 logical next actions for the player
 
@@ -277,9 +298,6 @@ Please respond with how the world reacts to this action. Be creative but logical
     
     // Add style prefixes and suffixes
     let enhancedPrompt = `${config.prefix} ${prompt}, ${config.suffix}`;
-    
-    // Add safety and quality modifiers
-    enhancedPrompt += ', safe for work, no violence, no inappropriate content';
     
     // Ensure prompt length is within limits
     if (enhancedPrompt.length > 4000) {

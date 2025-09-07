@@ -62,6 +62,14 @@ router.post('/new-game', [
   body('image_style')
     .isIn(Object.values(IMAGE_STYLES))
     .withMessage('Invalid image style'),
+  body('safety_filter')
+    .optional()
+    .isBoolean()
+    .withMessage('Safety filter must be a boolean'),
+  body('content_rating')
+    .optional()
+    .isIn(['PG-13', 'R'])
+    .withMessage('Content rating must be PG-13 or R'),
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

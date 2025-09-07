@@ -1,6 +1,16 @@
 // Re-export shared types for frontend use
 export * from '../../../shared/types';
 
+// Explicit imports to ensure types are available
+import type { 
+  WorldState as SharedWorldState, 
+  Turn as SharedTurn, 
+  SavedGame as SharedSavedGame 
+} from '../../../shared/types';
+
+// Re-export with local names to avoid conflicts
+export type { SharedWorldState as WorldState, SharedTurn as Turn, SharedSavedGame as SavedGame };
+
 // Additional frontend-specific types
 export interface GameUIState {
   isLoading: boolean;
@@ -16,6 +26,8 @@ export interface GameSettings {
   autoScroll: boolean;
   soundEnabled: boolean;
   animationsEnabled: boolean;
+  contentRating: 'PG-13' | 'R';
+  safetyFilter: boolean;
 }
 
 export interface AuthState {
@@ -37,11 +49,11 @@ export interface RootState {
 export interface GameState {
   currentSession: {
     session_id: string;
-    world_state: WorldState;
-    turn_history: Turn[];
+    world_state: SharedWorldState;
+    turn_history: SharedTurn[];
     quick_actions: string[];
   } | null;
-  savedGames: SavedGame[];
+  savedGames: SharedSavedGame[];
   recentSessions: GameSessionSummary[];
 }
 

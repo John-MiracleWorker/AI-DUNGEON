@@ -65,7 +65,7 @@ const GameSettingsSchema = new Schema({
     enum: ['easy', 'normal', 'hard'],
     default: 'normal'
   },
-  safety_filter: { type: Boolean, default: true },
+  safety_filter: { type: Boolean, default: false },
 }, { _id: false });
 
 const GameSessionSchema = new Schema({

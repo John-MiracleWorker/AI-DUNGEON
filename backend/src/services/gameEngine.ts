@@ -99,7 +99,7 @@ class GameEngine {
         },
         settings: {
           difficulty: 'normal',
-          safety_filter: true
+          safety_filter: request.safety_filter ?? false
         }
       });
 
@@ -371,6 +371,10 @@ class GameEngine {
     }
 
     if (changes.inventory && Array.isArray(changes.inventory)) {
+      // Ensure inventory is always an array
+      if (!Array.isArray(newState.inventory)) {
+        newState.inventory = [];
+      }
       newState.inventory = [...newState.inventory, ...changes.inventory];
     }
 
@@ -382,19 +386,23 @@ class GameEngine {
   }
 
   private calculateWorldStateChanges(previousState: WorldState | undefined, currentState: WorldState) {
+    // Ensure inventories are always arrays
+    const currentInventory = Array.isArray(currentState.inventory) ? currentState.inventory : [];
+    
     if (!previousState) {
       return {
         location: currentState.location,
         inventory_changes: {
-          added: currentState.inventory,
+          added: currentInventory,
           removed: []
         },
         flags_updated: currentState.flags
       };
     }
 
-    const addedItems = currentState.inventory.filter(item => !previousState.inventory.includes(item));
-    const removedItems = previousState.inventory.filter(item => !currentState.inventory.includes(item));
+    const previousInventory = Array.isArray(previousState.inventory) ? previousState.inventory : [];
+    const addedItems = currentInventory.filter(item => !previousInventory.includes(item));
+    const removedItems = previousInventory.filter(item => !currentInventory.includes(item));
 
     const flagsUpdated: Record<string, any> = {};
     for (const [key, value] of Object.entries(currentState.flags)) {

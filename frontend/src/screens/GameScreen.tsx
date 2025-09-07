@@ -155,7 +155,7 @@ export const GameScreen: React.FC = () => {
   };
 
   const handleLoadGame = () => {
-    navigation.navigate('LoadGame' as never);
+    navigation.navigate('Library' as never);
   };
 
   const handleNewGame = () => {

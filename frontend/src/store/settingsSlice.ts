@@ -7,6 +7,8 @@ const initialState: GameSettings = {
   autoScroll: true,
   soundEnabled: true,
   animationsEnabled: true,
+  contentRating: 'R',
+  safetyFilter: false,
 };
 
 const settingsSlice = createSlice({

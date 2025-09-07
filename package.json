@@ -13,7 +13,13 @@
     "test:frontend": "cd frontend && npm test",
     "start": "cd backend && npm start"
   },
-  "keywords": ["ai", "adventure", "game", "openai", "react-native"],
+  "keywords": [
+    "ai",
+    "adventure",
+    "game",
+    "openai",
+    "react-native"
+  ],
   "author": "AI Dungeon Team",
   "license": "MIT",
   "devDependencies": {

@@ -61,6 +61,8 @@ export interface NewGameRequest {
   genre: 'fantasy' | 'sci-fi' | 'horror' | 'modern';
   style_preference: 'detailed' | 'concise';
   image_style: 'fantasy_art' | 'comic_book' | 'painterly';
+  safety_filter?: boolean;
+  content_rating?: 'PG-13' | 'R';
 }
 
 export interface NewGameResponse {

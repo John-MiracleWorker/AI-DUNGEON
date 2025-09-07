@@ -5,6 +5,8 @@ import authReducer from './authSlice';
 import gameReducer from './gameSlice';
 import uiReducer from './uiSlice';
 import settingsReducer from './settingsSlice';
+import launcherReducer from './launcherSlice';
+import offlineReducer from './offlineSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +14,8 @@ export const store = configureStore({
     game: gameReducer,
     ui: uiReducer,
     settings: settingsReducer,
+    launcher: launcherReducer,
+    offline: offlineReducer,
     [gameApi.reducerPath]: gameApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>

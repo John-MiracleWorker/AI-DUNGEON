@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppDispatch } from '../utils/hooks';
+import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { useStartNewGameMutation } from '../services/gameApi';
 import { setCurrentSession } from '../store/gameSlice';
 import { NewGameRequest } from '../types';
@@ -36,6 +36,7 @@ const stylePreferences = [
 export const NewGameScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
+  const settings = useAppSelector(state => state.settings);
   const [startNewGame, { isLoading }] = useStartNewGameMutation();
 
   const [selectedGenre, setSelectedGenre] = useState<string>('fantasy');
@@ -48,6 +49,8 @@ export const NewGameScreen: React.FC = () => {
         genre: selectedGenre as any,
         style_preference: selectedStylePreference as any,
         image_style: selectedImageStyle as any,
+        safety_filter: settings.safetyFilter,
+        content_rating: settings.contentRating,
       };
 
       const result = await startNewGame(gameRequest).unwrap();
@@ -76,7 +79,7 @@ export const NewGameScreen: React.FC = () => {
       }));
 
       // Navigate to game screen
-      navigation.navigate('Game' as never, { sessionId: result.session_id } as never);
+      (navigation as any).navigate('Game', { sessionId: result.session_id });
 
     } catch (error: any) {
       console.error('Failed to start new game:', error);
