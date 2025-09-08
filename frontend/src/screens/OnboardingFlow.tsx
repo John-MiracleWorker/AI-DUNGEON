@@ -39,7 +39,7 @@ const WelcomeSlide: React.FC<OnboardingSlideProps> = ({ onNext, onSkip }) => {
         Your choices shape the story!
       </Text>
       <View style={styles.iconContainer}>
-        <Ionicons name="castle" size={80} color="#8b5cf6" />
+        <Ionicons name="home" size={80} color="#8b5cf6" />
       </View>
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.primaryButton} onPress={onNext}>

@@ -167,4 +167,52 @@ export const PromptAdventureScreen: React.FC = () => {
   );
 };
 
-// ... existing styles ...
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    padding: 20,
+  },
+  label: {
+    color: '#f3f4f6',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#2a2a2a',
+    color: '#f3f4f6',
+    padding: 12,
+    borderRadius: 8,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 16,
+  },
+  picker: {
+    backgroundColor: '#2a2a2a',
+    color: '#f3f4f6',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  button: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+});

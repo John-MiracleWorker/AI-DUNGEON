@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -59,20 +60,20 @@ export const SplashScreen: React.FC = () => {
   };
   
   const startAnimations = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+        useNativeDriver: Platform.OS !== 'web',
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 8,
+        useNativeDriver: Platform.OS !== 'web',
+        }),
+      ]).start();
+    };
   
   const preloadAppData = async () => {
     try {
