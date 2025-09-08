@@ -134,12 +134,43 @@ export const NewGameScreen: React.FC = () => {
         quick_actions: result.prologue.quick_actions,
       }));
 
-      // Navigate to game screen
-      (navigation as any).navigate('Game', { sessionId: result.session_id });
+      // Navigate to game screen with error handling
+      try {
+        if (navigation && typeof (navigation as any).navigate === 'function') {
+          (navigation as any).navigate('Game', { sessionId: result.session_id });
+        } else {
+          throw new Error('Navigation not available');
+        }
+      } catch (navError) {
+        console.error('Navigation failed:', navError);
+        Alert.alert(
+          'Adventure Created',
+          'Your adventure was created successfully. Please go to your game library to access it.'
+        );
+      }
 
     } catch (error: any) {
       console.error('Failed to start new game:', error);
-      Alert.alert('Error', error.data?.message || 'Failed to start new game');
+      
+      // Enhanced error categorization
+      let errorMessage = 'Failed to start new game. Please try again.';
+      
+      if (error.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error.status === 401) {
+        errorMessage = 'Authentication failed. Please log in and try again.';
+        // Note: We would need to dispatch a logout action here if we had access to it
+      } else if (error.status === 403) {
+        errorMessage = 'Access denied. You do not have permission to create adventures.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+      } else if (error.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.status === 400) {
+        errorMessage = `Invalid request: ${error.data?.error || 'Please check your input'}`;
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 

@@ -16,15 +16,15 @@ export const TurnDisplay: React.FC<TurnDisplayProps> = ({
   onImagePress,
   isLatest = false
 }) => {
-  const handleRetry = () => {
-    // Refresh the component to trigger a new image load
-    forceUpdate();
-  };
-
   // Simple force update mechanism
   const [, setForceUpdate] = useState(0);
   const forceUpdate = () => {
     setForceUpdate(prev => prev + 1);
+  };
+
+  const handleRetry = () => {
+    // Refresh the component to trigger a new image load
+    forceUpdate();
   };
 
   const renderImage = () => {

@@ -83,17 +83,49 @@ router.post('/new-game', [
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+    // Return detailed validation errors
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: 'Validation failed',
+      details: errors.array(),
+      message: errors.array().map(e => e.msg).join(', ')
+    });
   }
 
   if (!req.user) {
-    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: 'Unauthorized',
+      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS
+    });
   }
 
   const newGameRequest: NewGameRequest = req.body;
-  const result = await gameEngine.createNewGame(newGameRequest, req.user.id);
-
-  res.status(HTTP_STATUS.CREATED).json(result);
+  
+  try {
+    const result = await gameEngine.createNewGame(newGameRequest, req.user.id);
+    res.status(HTTP_STATUS.CREATED).json(result);
+  } catch (error: any) {
+    logger.error('Failed to create new game:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user.id,
+      request: newGameRequest
+    });
+    
+    // Return more detailed error information
+    if (error instanceof CustomError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        message: error.message,
+        statusCode: error.statusCode
+      });
+    }
+    
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to create new game',
+      message: 'An unexpected error occurred while creating your game. Please try again.',
+      statusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    });
+  }
 }));
 
 /**
@@ -167,13 +199,12 @@ router.post('/turn', [
 
   const result = await gameEngine.processTurn(turnRequest, req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(result);
+  return res.status(HTTP_STATUS.OK).json(result);
 }));
 
 /**
  * @swagger
  * /api/game/{sessionId}:
- *   get:
  *     summary: Load an existing game session
  *     tags: [Game]
  *     security:
@@ -206,7 +237,7 @@ router.get('/game/:sessionId', [
 
   const result = await gameEngine.loadGame(req.params.sessionId, req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(result);
+  return res.status(HTTP_STATUS.OK).json(result);
 }));
 
 /**
@@ -266,7 +297,7 @@ router.post('/save-game', [
 
   const result = await gameEngine.saveGame(saveRequest, req.user.id);
 
-  res.status(HTTP_STATUS.CREATED).json(result);
+  return res.status(HTTP_STATUS.CREATED).json(result);
 }));
 
 /**
@@ -311,7 +342,7 @@ router.get('/saved-games', asyncHandler(async (req: AuthRequest, res: Response) 
 
   const result = await gameEngine.getSavedGames(req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(result);
+  return res.status(HTTP_STATUS.OK).json(result);
 }));
 
 /**
@@ -347,7 +378,7 @@ router.get('/sessions', asyncHandler(async (req: AuthRequest, res: Response) => 
     current_location: session.world_state.location
   }));
 
-  res.status(HTTP_STATUS.OK).json({ sessions: result });
+  return res.status(HTTP_STATUS.OK).json({ sessions: result });
 }));
 
 /**
@@ -419,17 +450,49 @@ router.post('/new-custom-game', [
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+    // Return detailed validation errors
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: 'Validation failed',
+      details: errors.array(),
+      message: errors.array().map(e => e.msg).join(', ')
+    });
   }
 
   if (!req.user) {
-    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: 'Unauthorized',
+      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS
+    });
   }
 
   const customAdventureRequest: CustomAdventureRequest = req.body;
-  const result = await gameEngine.createCustomGame(customAdventureRequest, req.user.id);
-
-  res.status(HTTP_STATUS.CREATED).json(result);
+  
+  try {
+    const result = await gameEngine.createCustomGame(customAdventureRequest, req.user.id);
+    res.status(HTTP_STATUS.CREATED).json(result);
+  } catch (error: any) {
+    logger.error('Failed to create custom adventure:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user.id,
+      adventureTitle: customAdventureRequest.adventure_details?.title || 'Unknown'
+    });
+    
+    // Return more detailed error information
+    if (error instanceof CustomError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        message: error.message,
+        statusCode: error.statusCode
+      });
+    }
+    
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to create custom adventure',
+      message: 'An unexpected error occurred while creating your custom adventure. Please try again.',
+      statusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    });
+  }
 }));
 
 /**
@@ -488,17 +551,49 @@ router.post('/new-prompt-game', [
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+    // Return detailed validation errors
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: 'Validation failed',
+      details: errors.array(),
+      message: errors.array().map(e => e.msg).join(', ')
+    });
   }
 
   if (!req.user) {
-    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: 'Unauthorized',
+      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS
+    });
   }
 
   const promptRequest: PromptAdventureRequest = req.body;
-  const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
-
-  res.status(HTTP_STATUS.CREATED).json(result);
+  
+  try {
+    const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
+    res.status(HTTP_STATUS.CREATED).json(result);
+  } catch (error: any) {
+    logger.error('Failed to create custom game from prompt:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user.id,
+      prompt: promptRequest.prompt.substring(0, 100) + '...' // Log first 100 chars only
+    });
+    
+    // Return more detailed error information
+    if (error instanceof CustomError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        message: error.message,
+        statusCode: error.statusCode
+      });
+    }
+    
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to generate adventure from prompt',
+      message: 'An unexpected error occurred while creating your adventure. Please try again.',
+      statusCode: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    });
+  }
 }));
 
 /**
@@ -602,7 +697,7 @@ router.get('/user-adventures', asyncHandler(async (req: AuthRequest, res: Respon
 
   const result = await gameEngine.getUserCustomAdventures(req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(result);
+  return res.status(HTTP_STATUS.OK).json(result);
 }));
 
 /**
@@ -628,7 +723,7 @@ router.get('/adventure-templates', asyncHandler(async (req: AuthRequest, res: Re
   const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
   const result = await gameEngine.getPublicAdventureTemplates(limit);
 
-  res.status(HTTP_STATUS.OK).json(result);
+  return res.status(HTTP_STATUS.OK).json(result);
 }));
 
 /**

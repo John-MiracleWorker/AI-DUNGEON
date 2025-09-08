@@ -35,6 +35,8 @@ class GameEngine {
     const startTime = Date.now();
     
     try {
+      logger.info('Creating new game', { userId, genre: request.genre, imageStyle: request.image_style });
+      
       const sessionId = generateSessionId();
       
       // Create initial world state
@@ -55,12 +57,15 @@ class GameEngine {
         sessionId
       };
 
+      logger.info('Generating prologue with AI', { sessionId, userId });
       const prologueResponse = await openAIService.generateNarration(gameContext);
+      logger.info('Prologue generated successfully', { sessionId, userId, responseLength: prologueResponse.narration.length });
       
       // Generate initial image with enhanced fallback and retry mechanism
       let imageUrl = '';
       let imageError: any = null;
       try {
+        logger.info('Generating prologue image', { sessionId, userId, imagePrompt: prologueResponse.image_prompt });
         const imageResult = await this.imageEnhancementService.getCachedOrGenerateImage(
           prologueResponse.image_prompt, 
           request.image_style,
@@ -68,8 +73,9 @@ class GameEngine {
         );
         imageUrl = imageResult.url;
         imageError = imageResult.error;
+        logger.info('Prologue image generated', { sessionId, userId, imageUrl: imageUrl ? 'success' : 'failed' });
       } catch (error) {
-        logger.warn('Failed to generate prologue image:', error);
+        logger.warn('Failed to generate prologue image:', { error: error.message, sessionId, userId });
       }
 
       // Create initial turn
@@ -117,9 +123,10 @@ class GameEngine {
       });
 
       await gameSession.save();
+      logger.info('Game session saved to database', { sessionId, userId });
 
       const processingTime = calculateProcessingTime(startTime);
-      logger.info(`New game created in ${processingTime}ms for user ${userId}`);
+      logger.info(`New game created successfully in ${processingTime}ms for user ${userId}`, { sessionId, processingTime });
 
       return {
         session_id: sessionId,
@@ -132,7 +139,15 @@ class GameEngine {
       };
 
     } catch (error) {
-      logger.error('Failed to create new game:', error);
+      logger.error('Failed to create new game:', { 
+        error: error.message, 
+        stack: error.stack,
+        userId,
+        request: { 
+          genre: request.genre, 
+          imageStyle: request.image_style 
+        }
+      });
       throw error;
     }
   }
@@ -144,9 +159,19 @@ class GameEngine {
     const startTime = Date.now();
     
     try {
+      logger.info('Creating custom adventure', { 
+        userId, 
+        title: request.adventure_details.title,
+        imageStyle: request.image_style 
+      });
+      
       // Validate the custom adventure request
       const validation = CustomAdventureValidator.validateCustomAdventureRequest(request);
       if (!validation.isValid) {
+        logger.warn('Custom adventure validation failed', { 
+          userId, 
+          errors: validation.errors 
+        });
         throw new CustomError(
           `Validation failed: ${validation.errors.map(e => e.message).join(', ')}`, 
           HTTP_STATUS.BAD_REQUEST
@@ -158,6 +183,11 @@ class GameEngine {
       
       // Ensure all required fields are present
       if (!sanitizedDetails.title || !sanitizedDetails.description) {
+        logger.warn('Missing required adventure details', { 
+          userId, 
+          hasTitle: !!sanitizedDetails.title,
+          hasDescription: !!sanitizedDetails.description
+        });
         throw new CustomError('Missing required adventure details', HTTP_STATUS.BAD_REQUEST);
       }
       
@@ -180,6 +210,7 @@ class GameEngine {
       });
 
       await customAdventure.save();
+      logger.info('Custom adventure saved to database', { adventureId, userId });
 
       // Create initial world state based on custom adventure
       const initialWorldState: WorldState = {
@@ -191,12 +222,23 @@ class GameEngine {
       };
 
       // Generate custom prologue using AI
+      logger.info('Generating custom adventure prologue with AI', { adventureId, userId });
       const prologueResponse = await openAIService.generateCustomPrologue(sanitizedDetails);
+      logger.info('Custom adventure prologue generated', { 
+        adventureId, 
+        userId, 
+        responseLength: prologueResponse.narration.length 
+      });
       
       // Generate initial image with enhanced fallback and retry mechanism
       let imageUrl = '';
       let imageError: any = null;
       try {
+        logger.info('Generating custom adventure prologue image', { 
+          adventureId, 
+          userId, 
+          imagePrompt: prologueResponse.image_prompt 
+        });
         const imageResult = await this.imageEnhancementService.getCachedOrGenerateImage(
           prologueResponse.image_prompt, 
           request.image_style,
@@ -204,8 +246,17 @@ class GameEngine {
         );
         imageUrl = imageResult.url;
         imageError = imageResult.error;
+        logger.info('Custom adventure prologue image generated', { 
+          adventureId, 
+          userId, 
+          imageUrl: imageUrl ? 'success' : 'failed' 
+        });
       } catch (error) {
-        logger.warn('Failed to generate custom adventure prologue image:', error);
+        logger.warn('Failed to generate custom adventure prologue image:', { 
+          error: error.message, 
+          adventureId, 
+          userId 
+        });
       }
 
       // Create initial turn
@@ -264,9 +315,14 @@ class GameEngine {
       });
 
       await gameSession.save();
+      logger.info('Custom game session saved to database', { sessionId, adventureId, userId });
 
       const processingTime = calculateProcessingTime(startTime);
-      logger.info(`Custom adventure created in ${processingTime}ms for user ${userId}`);
+      logger.info(`Custom adventure created successfully in ${processingTime}ms for user ${userId}`, { 
+        sessionId, 
+        adventureId, 
+        processingTime 
+      });
 
       return {
         adventure_id: adventureId,
@@ -280,7 +336,11 @@ class GameEngine {
       };
 
     } catch (error) {
-      logger.error('Failed to create custom adventure:', error);
+      logger.error('Failed to create custom adventure:', { 
+        error: error.message, 
+        stack: error.stack,
+        userId
+      });
       if (error instanceof CustomError) {
         throw error;
       }
@@ -290,7 +350,18 @@ class GameEngine {
 
   async createCustomGameFromPrompt(request: PromptAdventureRequest, userId: string): Promise<CustomAdventureResponse> {
     try {
+      logger.info('Creating custom game from prompt', { 
+        userId, 
+        promptLength: request.prompt.length 
+      });
+      
       const adventureDetails = await openAIService.generateAdventureFromPrompt(request.prompt);
+      logger.info('Adventure details generated from prompt', { 
+        userId, 
+        title: adventureDetails.title,
+        descriptionLength: adventureDetails.description.length 
+      });
+      
       const customRequest: CustomAdventureRequest = {
         genre: 'custom',
         style_preference: request.style_preference || 'detailed',
@@ -299,9 +370,15 @@ class GameEngine {
         content_rating: request.content_rating,
         adventure_details: adventureDetails
       };
+      
       return this.createCustomGame(customRequest, userId);
     } catch (error) {
-      logger.error('Failed to create custom game from prompt:', error);
+      logger.error('Failed to create custom game from prompt:', {
+        error: error.message,
+        stack: error.stack,
+        userId,
+        prompt: request.prompt.substring(0, 100) + '...' // Log first 100 chars only
+      });
       if (error instanceof CustomError) {
         throw error;
       }

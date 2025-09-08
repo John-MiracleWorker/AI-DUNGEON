@@ -73,31 +73,25 @@ export const PromptAdventureScreen: React.FC = () => {
         quick_actions: result.prologue.quick_actions,
       }));
 
-      // Use safer navigation with error handling
+      // Use simpler, more reliable navigation
       try {
         if (navigation && typeof navigation.navigate === 'function') {
-          // Navigate to the main tabs first, then to the game screen
-          navigation.navigate('MainTabs' as never, { 
-            screen: 'Games', 
-            params: { 
-              screen: 'Game', 
-              params: { sessionId: result.session_id } 
-            } 
-          } as never);
+          // Navigate directly to the game screen
+          navigation.navigate('Game' as never, { sessionId: result.session_id } as never);
         } else {
           throw new Error('Navigation not available');
         }
       } catch (navError) {
         console.error('Navigation failed:', navError);
         Alert.alert(
-          'Navigation Error',
-          'Adventure created successfully but navigation failed. Please go to the game library to access your adventure.'
+          'Adventure Created',
+          'Your adventure was created successfully. Please go to your game library to access it.'
         );
       }
     } catch (error: any) {
       console.error('Failed to create prompt adventure:', error);
       
-      // Enhanced error categorization
+      // Enhanced error categorization with more detailed messages
       let errorMessage = 'Failed to create adventure. Please try again.';
       
       if (error.data?.message) {
@@ -109,12 +103,10 @@ export const PromptAdventureScreen: React.FC = () => {
         errorMessage = 'Access denied. You do not have permission to create adventures.';
       } else if (error.status === 429) {
         errorMessage = 'Rate limit exceeded. Please wait before trying again.';
-      } else if (error.status === 500) {
+      } else if (error.status >= 500) {
         errorMessage = 'Server error. Please try again later.';
-      } else if (error.status === 503) {
-        errorMessage = 'Service unavailable. Please try again later.';
       } else if (error.status === 400) {
-        errorMessage = 'Invalid request. Please check your input.';
+        errorMessage = `Invalid request: ${error.data?.error || 'Please check your input'}`;
       }
       
       Alert.alert('Error', errorMessage);

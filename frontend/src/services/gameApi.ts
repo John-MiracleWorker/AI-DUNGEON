@@ -51,8 +51,27 @@ interface GenerateSpeechRequest {
   quality?: 'standard' | 'high';
 }
 
-// Get API URL from environment
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+// Get API URL from environment with better fallback handling
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
+                    (process.env.NODE_ENV === 'production' ? 
+                     'https://your-production-url.com/api' : 
+                     'http://localhost:3001/api');
+
+// Add a health check function to verify API connectivity
+export const checkApiConnectivity = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('API connectivity check failed:', error);
+    return false;
+  }
+};
 
 export const gameApi = createApi({
   reducerPath: 'gameApi',
