@@ -102,7 +102,7 @@ router.post('/new-game', [
   
   try {
     const result = await gameEngine.createNewGame(newGameRequest, req.user.id);
-    res.status(HTTP_STATUS.CREATED).json(result);
+    return res.status(HTTP_STATUS.CREATED).json(result);
   } catch (error: any) {
     logger.error('Failed to create new game:', {
       error: error.message,
@@ -205,6 +205,7 @@ router.post('/turn', [
 /**
  * @swagger
  * /api/game/{sessionId}:
+ *   get:
  *     summary: Load an existing game session
  *     tags: [Game]
  *     security:
@@ -469,7 +470,7 @@ router.post('/new-custom-game', [
   
   try {
     const result = await gameEngine.createCustomGame(customAdventureRequest, req.user.id);
-    res.status(HTTP_STATUS.CREATED).json(result);
+    return res.status(HTTP_STATUS.CREATED).json(result);
   } catch (error: any) {
     logger.error('Failed to create custom adventure:', {
       error: error.message,
@@ -570,7 +571,7 @@ router.post('/new-prompt-game', [
   
   try {
     const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
-    res.status(HTTP_STATUS.CREATED).json(result);
+    return res.status(HTTP_STATUS.CREATED).json(result);
   } catch (error: any) {
     logger.error('Failed to create custom game from prompt:', {
       error: error.message,
@@ -636,7 +637,7 @@ router.post('/validate-adventure', [
   const adventureDetails: AdventureDetails = req.body.adventure_details;
   const validation = CustomAdventureValidator.validateAdventureDetails(adventureDetails);
 
-  res.status(HTTP_STATUS.OK).json(validation);
+  return res.status(HTTP_STATUS.OK).json(validation);
 }));
 
 /**
@@ -675,7 +676,7 @@ router.post('/adventure-suggestions', [
   const partialAdventure = req.body.partial_adventure || {};
   const suggestions = await AdventureSuggestionService.generateSuggestions(partialAdventure);
 
-  res.status(HTTP_STATUS.OK).json({ suggestions });
+  return res.status(HTTP_STATUS.OK).json({ suggestions });
 }));
 
 /**

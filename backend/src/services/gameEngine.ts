@@ -74,8 +74,8 @@ class GameEngine {
         imageUrl = imageResult.url;
         imageError = imageResult.error;
         logger.info('Prologue image generated', { sessionId, userId, imageUrl: imageUrl ? 'success' : 'failed' });
-      } catch (error) {
-        logger.warn('Failed to generate prologue image:', { error: error.message, sessionId, userId });
+      } catch (error: any) {
+        logger.warn('Failed to generate prologue image:', { error: error.message || error, sessionId, userId });
       }
 
       // Create initial turn
@@ -138,9 +138,9 @@ class GameEngine {
         world_state: updatedWorldState
       };
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to create new game:', { 
-        error: error.message, 
+        error: error.message || String(error), 
         stack: error.stack,
         userId,
         request: { 
@@ -251,9 +251,9 @@ class GameEngine {
           userId, 
           imageUrl: imageUrl ? 'success' : 'failed' 
         });
-      } catch (error) {
+      } catch (error: any) {
         logger.warn('Failed to generate custom adventure prologue image:', { 
-          error: error.message, 
+          error: error.message || String(error), 
           adventureId, 
           userId 
         });
@@ -335,9 +335,9 @@ class GameEngine {
         world_state: updatedWorldState
       };
 
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to create custom adventure:', { 
-        error: error.message, 
+        error: error.message || String(error), 
         stack: error.stack,
         userId
       });
@@ -372,9 +372,9 @@ class GameEngine {
       };
       
       return this.createCustomGame(customRequest, userId);
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Failed to create custom game from prompt:', {
-        error: error.message,
+        error: error.message || String(error),
         stack: error.stack,
         userId,
         prompt: request.prompt.substring(0, 100) + '...' // Log first 100 chars only
@@ -514,8 +514,8 @@ class GameEngine {
         }
       };
 
-    } catch (error) {
-      logger.error('Failed to process turn:', error);
+    } catch (error: any) {
+      logger.error('Failed to process turn:', error.message || String(error));
       throw error;
     }
   }
@@ -546,8 +546,8 @@ class GameEngine {
         }
       };
 
-    } catch (error) {
-      logger.error('Failed to load game:', error);
+    } catch (error: any) {
+      logger.error('Failed to load game:', error.message || String(error));
       throw error;
     }
   }
@@ -596,7 +596,7 @@ class GameEngine {
       if (error.code === 11000) {
         throw new CustomError('A save with this name already exists', HTTP_STATUS.BAD_REQUEST);
       }
-      logger.error('Failed to save game:', error);
+      logger.error('Failed to save game:', error.message || String(error));
       throw error;
     }
   }
@@ -618,8 +618,8 @@ class GameEngine {
         }))
       };
 
-    } catch (error) {
-      logger.error('Failed to get saved games:', error);
+    } catch (error: any) {
+      logger.error('Failed to get saved games:', error.message || String(error));
       throw error;
     }
   }
