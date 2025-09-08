@@ -13,6 +13,7 @@ import {
   PromptAdventureRequest,
   AdventureDetails
 } from '../../../shared/types';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -523,6 +524,14 @@ router.post('/new-prompt-game', [
       status: HTTP_STATUS.INTERNAL_SERVER_ERROR
     });
   }
+  
+  // This line should never be reached due to the return statements above
+  // but is added to satisfy TypeScript's requirement that all code paths return a value
+  return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+    error: 'Unexpected error',
+    message: 'An unexpected error occurred',
+    status: HTTP_STATUS.INTERNAL_SERVER_ERROR
+  });
 }));
 
 /**
