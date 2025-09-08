@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GameScreen } from '../screens/GameScreen';
 import { NewGameScreen } from '../screens/NewGameScreen';
 import { CustomAdventureScreen } from '../screens/CustomAdventureScreen';
+import { PromptAdventureScreen } from '../screens/PromptAdventureScreen';
 import { GameLauncher } from '../screens/GameLauncher';
 import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingFlow } from '../screens/OnboardingFlow';
@@ -27,6 +28,7 @@ const linking = {
               Launcher: 'launcher',
               NewGame: 'new-game/:genre?',
               CustomAdventure: 'custom-adventure',
+              PromptAdventure: 'prompt-adventure',
               Game: 'game/:sessionId',
             },
           },
@@ -76,6 +78,14 @@ const GameStackNavigator: React.FC = () => {
         component={CustomAdventureScreen}
         options={{
           title: 'Create Custom Adventure',
+          headerTitleAlign: 'center',
+        }}
+      />
+      <Stack.Screen
+        name="PromptAdventure"
+        component={PromptAdventureScreen}
+        options={{
+          title: 'Prompt Adventure',
           headerTitleAlign: 'center',
         }}
       />

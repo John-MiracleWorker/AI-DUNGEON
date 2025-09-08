@@ -243,6 +243,62 @@ class OpenAIService {
     }
   }
 
+  async generateAdventureFromPrompt(prompt: string): Promise<AdventureDetails> {
+    if (!this.openai.apiKey) {
+      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const systemPrompt = 'You are an AI that creates detailed JSON for text adventures. Return a JSON matching the AdventureDetails interface.';
+      const userPrompt = `Prompt: ${prompt}\nReturn only valid JSON`;
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ];
+
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: messages as any,
+        temperature: 0.8,
+        max_tokens: 1000,
+      });
+
+      const aiResponse = response.choices[0]?.message?.content;
+      if (!aiResponse) {
+        throw new Error('No adventure details returned from OpenAI');
+      }
+
+      let adventureDetails: AdventureDetails;
+      try {
+        adventureDetails = JSON.parse(aiResponse);
+      } catch (err) {
+        logger.error('Failed to parse adventure details:', aiResponse);
+        throw new Error('Invalid adventure details format');
+      }
+
+      const processingTime = Date.now() - startTime;
+      logger.info(`Adventure generated in ${processingTime}ms`);
+
+      return adventureDetails;
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      logger.error(`Adventure generation failed after ${processingTime}ms:`, error);
+
+      if (error.status === 429) {
+        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
+      }
+
+      if (error.status === 401) {
+        throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      }
+
+      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   async generateImage(prompt: string, style: string, adventureDetails?: AdventureDetails, config?: ImageGenerationConfig): Promise<string> {
     if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
