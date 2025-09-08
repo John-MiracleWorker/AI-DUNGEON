@@ -67,7 +67,7 @@ PORT=3001
 
 #### Frontend (.env)
 ```
-REACT_APP_API_URL=http://localhost:3001/api
+EXPO_PUBLIC_API_URL=http://localhost:3001/api
 ```
 
 ## Development
@@ -80,6 +80,16 @@ REACT_APP_API_URL=http://localhost:3001/api
 
 - `./rebuild-dev.sh` - Completely rebuild and restart the development environment
 - `./rebuild-prod.sh` - Completely rebuild and restart the production environment
+
+## Deployment
+
+Ensure your `.env` file defines `EXPO_PUBLIC_API_URL` pointing to the backend API.
+
+```bash
+cp .env.example .env
+# Edit .env and set EXPO_PUBLIC_API_URL=https://your-domain.com/api
+./deploy.sh
+```
 
 ## API Documentation
 
