@@ -1,6 +1,7 @@
 export const API_ENDPOINTS = {
   NEW_GAME: '/api/new-game',
   NEW_CUSTOM_GAME: '/api/new-custom-game',
+  NEW_PROMPT_GAME: '/api/new-prompt-game',
   TURN: '/api/turn',
   LOAD_GAME: '/api/game',
   SAVE_GAME: '/api/save-game',

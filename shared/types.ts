@@ -75,6 +75,16 @@ export interface NewGameResponse {
   world_state: WorldState;
 }
 
+export interface PromptAdventureRequest {
+  prompt: string;
+  style_preference?: 'detailed' | 'concise';
+  image_style?: 'fantasy_art' | 'comic_book' | 'painterly';
+  safety_filter?: boolean;
+  content_rating?: 'PG-13' | 'R';
+}
+
+export type PromptAdventureResponse = CustomAdventureResponse;
+
 export interface TurnRequest {
   session_id: string;
   player_input: string;

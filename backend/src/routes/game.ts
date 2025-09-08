@@ -7,10 +7,11 @@ import { CustomError, asyncHandler } from '../middleware/errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES, GENRES, IMAGE_STYLES, STYLE_PREFERENCES } from '../../../shared/constants';
 import { 
   NewGameRequest, 
-  TurnRequest, 
+  TurnRequest,
   SaveGameRequest,
   CustomAdventureRequest,
-  AdventureDetails 
+  PromptAdventureRequest,
+  AdventureDetails
 } from '../../../shared/types';
 
 const router = Router();
@@ -425,6 +426,75 @@ router.post('/new-custom-game', [
 
   const customAdventureRequest: CustomAdventureRequest = req.body;
   const result = await gameEngine.createCustomGame(customAdventureRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/new-prompt-game:
+ *   post:
+ *     summary: Create a new adventure from a custom prompt
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - prompt
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *               style_preference:
+ *                 type: string
+ *                 enum: [detailed, concise]
+ *               image_style:
+ *                 type: string
+ *                 enum: [fantasy_art, comic_book, painterly]
+ *     responses:
+ *       201:
+ *         description: Prompt-based adventure session created
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/new-prompt-game', [
+  body('prompt')
+    .isLength({ min: 1, max: 1000 })
+    .withMessage('Prompt is required'),
+  body('style_preference')
+    .optional()
+    .isIn(Object.values(STYLE_PREFERENCES))
+    .withMessage('Invalid style preference'),
+  body('image_style')
+    .optional()
+    .isIn(Object.values(IMAGE_STYLES))
+    .withMessage('Invalid image style'),
+  body('safety_filter')
+    .optional()
+    .isBoolean()
+    .withMessage('Safety filter must be a boolean'),
+  body('content_rating')
+    .optional()
+    .isIn(['PG-13', 'R'])
+    .withMessage('Content rating must be PG-13 or R'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const promptRequest: PromptAdventureRequest = req.body;
+  const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
 
   res.status(HTTP_STATUS.CREATED).json(result);
 }));

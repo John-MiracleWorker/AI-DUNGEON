@@ -10,6 +10,7 @@ import {
   GameSession,
   CustomAdventureRequest,
   CustomAdventureResponse,
+  PromptAdventureRequest,
   AdventureDetails,
   AdventureValidationResult,
   AdventureSuggestion,
@@ -177,6 +178,15 @@ export const gameApi = createApi({
       invalidatesTags: ['Sessions', 'Adventure'],
     }),
 
+    createPromptGame: builder.mutation<CustomAdventureResponse, PromptAdventureRequest>({
+      query: (body) => ({
+        url: '/new-prompt-game',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Sessions', 'Adventure'],
+    }),
+
     validateAdventure: builder.mutation<AdventureValidationResult, { adventure_details: AdventureDetails }>({
       query: (body) => ({
         url: '/validate-adventure',
@@ -250,6 +260,7 @@ export const {
   useHealthCheckQuery,
   // Custom Adventure hooks
   useCreateCustomGameMutation,
+  useCreatePromptGameMutation,
   useValidateAdventureMutation,
   useGetAdventureSuggestionsMutation,
   useGetUserAdventuresQuery,

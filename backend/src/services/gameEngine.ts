@@ -15,7 +15,8 @@ import {
   SavedGamesResponse,
   CustomAdventureRequest,
   CustomAdventureResponse,
-  AdventureDetails 
+  PromptAdventureRequest,
+  AdventureDetails
 } from '../../../shared/types';
 import { 
   validatePlayerInput, 
@@ -275,6 +276,19 @@ class GameEngine {
       }
       throw new CustomError('Failed to create custom adventure', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  async createCustomGameFromPrompt(request: PromptAdventureRequest, userId: string): Promise<CustomAdventureResponse> {
+    const adventureDetails = await openAIService.generateAdventureFromPrompt(request.prompt);
+    const customRequest: CustomAdventureRequest = {
+      genre: 'custom',
+      style_preference: request.style_preference || 'detailed',
+      image_style: request.image_style || 'fantasy_art',
+      safety_filter: request.safety_filter,
+      content_rating: request.content_rating,
+      adventure_details: adventureDetails
+    };
+    return this.createCustomGame(customRequest, userId);
   }
 
   async processTurn(request: TurnRequest, userId: string): Promise<TurnResponse> {

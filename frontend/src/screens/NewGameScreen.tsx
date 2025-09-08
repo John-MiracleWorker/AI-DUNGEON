@@ -36,6 +36,13 @@ const gameTypes = [
     icon: 'library',
     description: 'Start from a community-created adventure template',
     color: '#f59e0b'
+  },
+  {
+    key: 'prompt',
+    label: 'Prompt Adventure',
+    icon: 'create',
+    description: 'Generate an adventure from your own prompt',
+    color: '#3b82f6'
   }
 ];
 
@@ -64,7 +71,7 @@ export const NewGameScreen: React.FC = () => {
   const [startNewGame, { isLoading }] = useStartNewGameMutation();
   const { data: templatesData } = useGetAdventureTemplatesQuery({ limit: 10 });
 
-  const [gameType, setGameType] = useState<'preset' | 'custom' | 'template'>('preset');
+  const [gameType, setGameType] = useState<'preset' | 'custom' | 'template' | 'prompt'>('preset');
   const [selectedGenre, setSelectedGenre] = useState<string>('fantasy');
   const [selectedImageStyle, setSelectedImageStyle] = useState<string>('fantasy_art');
   const [selectedStylePreference, setSelectedStylePreference] = useState<string>('detailed');
@@ -74,6 +81,11 @@ export const NewGameScreen: React.FC = () => {
     if (gameType === 'custom') {
       // Navigate to custom adventure creation wizard
       (navigation as any).navigate('CustomAdventure');
+      return;
+    }
+
+    if (gameType === 'prompt') {
+      (navigation as any).navigate('PromptAdventure');
       return;
     }
 
