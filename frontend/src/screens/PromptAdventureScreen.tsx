@@ -150,9 +150,9 @@ export const PromptAdventureScreen: React.FC = () => {
       </Picker>
 
       <TouchableOpacity
-        style={[styles.button, (isLoading || !isAuthenticated) && styles.buttonDisabled]}
+        style={[styles.button, isLoading && styles.buttonDisabled]}
         onPress={handleCreate}
-        disabled={isLoading || !isAuthenticated}
+        disabled={isLoading}
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>

@@ -11,6 +11,7 @@ import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av'; // Import expo-av
+import { Buffer } from 'buffer';
 import { useAppSelector, useAppDispatch } from '../../utils/hooks';
 import { updateAudioSettings } from '../../store/settingsSlice';
 import { useGenerateSpeechMutation } from '../../services/gameApi';
@@ -67,7 +68,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     setError(null);
     
     try {
-      const response = await generateSpeech({
+      const blob = await generateSpeech({
         sessionId,
         body: {
           text: narrationText,
@@ -76,15 +77,17 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
           quality: 'standard',
         }
       }).unwrap();
-      
-      const audioUrl = URL.createObjectURL(response);
-      
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+      const audioUri = `data:audio/mpeg;base64,${base64Audio}`;
+
       // Clean up previous audio
       cleanupAudio();
-      
+
       // Create new sound object using expo-av
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl },
+        { uri: audioUri },
         { shouldPlay: false }
       );
       soundRef.current = sound;
