@@ -69,6 +69,36 @@ class OpenAIService {
     };
   }
 
+  /**
+   * Standardized error handling for OpenAI API calls
+   */
+  private handleOpenAIError(error: any, context: string, fallbackResponse?: any): never {
+    logger.error(`OpenAI API error in ${context}:`, error);
+
+    if (error.status === 429) {
+      throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
+    }
+
+    if (error.status === 401) {
+      throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    if (error.status === 400) {
+      logger.error(`Bad request in ${context}:`, error.message);
+      throw new CustomError(`Invalid request to OpenAI API: ${error.message}`, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // If we have a fallback response, return it instead of throwing an error
+    if (fallbackResponse !== undefined) {
+      throw new CustomError(JSON.stringify(fallbackResponse), HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+
+  /**
+   * Generate narration with standardized error handling
+   */
   async generateNarration(context: GameContext): Promise<NarrationResponse> {
     if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -108,40 +138,27 @@ class OpenAIService {
         throw new Error('No response from OpenAI');
       }
 
-      // Parse the JSON response from AI
+      // Parse the JSON response from AI with enhanced validation
       let parsedResponse: NarrationResponse;
       try {
         parsedResponse = JSON.parse(aiResponse);
-        
-        // Validate and sanitize the response structure
-        if (!parsedResponse.narration) {
-          parsedResponse.narration = aiResponse;
-        }
-        if (!parsedResponse.image_prompt) {
-          parsedResponse.image_prompt = `${context.worldState.location}, ${context.genre} scene`;
-        }
-        if (!Array.isArray(parsedResponse.quick_actions)) {
-          parsedResponse.quick_actions = ['Look around', 'Continue'];
-        }
-        if (!parsedResponse.state_changes) {
-          parsedResponse.state_changes = {};
-        }
-        
-        // Ensure inventory in state_changes is always an array if present
-        if (parsedResponse.state_changes.inventory && !Array.isArray(parsedResponse.state_changes.inventory)) {
-          logger.warn('AI returned non-array inventory, converting to array:', parsedResponse.state_changes.inventory);
-          parsedResponse.state_changes.inventory = [];
-        }
-        
+        // Validate and sanitize the response structure with comprehensive validation
+        parsedResponse = this.validateNarrationResponse(parsedResponse, context);
       } catch (parseError) {
         logger.error('Failed to parse AI response:', aiResponse);
-        // Fallback response if JSON parsing fails
-        parsedResponse = {
-          narration: aiResponse,
-          image_prompt: `${context.worldState.location}, ${context.genre} scene`,
-          quick_actions: ['Look around', 'Continue'],
-          state_changes: {}
-        };
+        // Try intelligent recovery before falling back
+        const extractedResponse = this.extractInfoFromRawResponse(aiResponse, context);
+        if (extractedResponse !== null) {
+          parsedResponse = extractedResponse;
+        } else {
+          // Final fallback response if all recovery attempts fail
+          parsedResponse = {
+            narration: aiResponse,
+            image_prompt: `${context.worldState.location}, ${context.genre} scene`,
+            quick_actions: ['Look around', 'Continue'],
+            state_changes: {}
+          };
+        }
       }
 
       const processingTime = Date.now() - startTime;
@@ -151,22 +168,17 @@ class OpenAIService {
 
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      logger.error(`AI narration failed after ${processingTime}ms:`, error);
-
-      if (error.status === 429) {
-        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
-      }
-
-      if (error.status === 401) {
-        throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-      }
-
-      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      return this.handleOpenAIError(error, 'generateNarration', {
+        narration: 'The AI encountered an error. Please try again.',
+        image_prompt: `${context.worldState.location}, ${context.genre} scene`,
+        quick_actions: ['Look around', 'Continue'],
+        state_changes: {}
+      });
     }
   }
 
   /**
-   * Generate custom adventure prologue
+   * Generate custom adventure prologue with standardized error handling
    */
   async generateCustomPrologue(adventureDetails: AdventureDetails): Promise<NarrationResponse> {
     if (!this.openai.apiKey) {
@@ -202,24 +214,29 @@ class OpenAIService {
       let parsedResponse: NarrationResponse;
       try {
         parsedResponse = JSON.parse(aiResponse);
-        
-        // Validate prologue response
-        if (!parsedResponse.narration) {
-          throw new Error('Prologue missing narration');
-        }
-        if (!parsedResponse.image_prompt) {
-          parsedResponse.image_prompt = `${adventureDetails.setting.world_description}, opening scene`;
-        }
-        if (!Array.isArray(parsedResponse.quick_actions)) {
-          parsedResponse.quick_actions = ['Look around', 'Continue', 'Examine surroundings'];
-        }
-        if (!parsedResponse.state_changes) {
-          parsedResponse.state_changes = {};
-        }
-        
+        // Validate prologue response with comprehensive validation
+        parsedResponse = this.validatePrologueResponse(parsedResponse, adventureDetails);
       } catch (parseError) {
         logger.error('Failed to parse custom prologue response:', aiResponse);
-        throw new Error('Invalid prologue response format');
+        // Try intelligent recovery before throwing error
+        const extractedResponse = this.extractInfoFromRawResponse(aiResponse, {
+          genre: 'custom',
+          worldState: {
+            location: '',
+            inventory: [],
+            npcs: [],
+            flags: {},
+            current_chapter: 'prologue'
+          },
+          recentHistory: [],
+          playerInput: 'START',
+          sessionId: 'prologue'
+        } as GameContext);
+        if (extractedResponse !== null) {
+          parsedResponse = extractedResponse;
+        } else {
+          throw new Error('Invalid prologue response format');
+        }
       }
 
       const processingTime = Date.now() - startTime;
@@ -229,20 +246,20 @@ class OpenAIService {
 
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      logger.error(`Custom prologue generation failed after ${processingTime}ms:`, error);
-
-      if (error.status === 429) {
-        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
-      }
-
-      if (error.status === 401) {
-        throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-      }
-
-      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      return this.handleOpenAIError(error, 'generateCustomPrologue', {
+        narration: 'Failed to generate adventure prologue. Please try again.',
+        image_prompt: `${adventureDetails.setting.world_description}, opening scene`,
+        quick_actions: ['Look around', 'Continue', 'Examine surroundings'],
+        state_changes: {
+          flags: { prologue_failed: true }
+        }
+      });
     }
   }
 
+  /**
+   * Generate adventure from prompt with standardized error handling
+   */
   async generateAdventureFromPrompt(prompt: string): Promise<AdventureDetails> {
     if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -274,14 +291,17 @@ class OpenAIService {
       let adventureDetails: AdventureDetails;
       try {
         adventureDetails = JSON.parse(aiResponse);
-        
-        // Validate essential fields
-        if (!adventureDetails.title || !adventureDetails.description) {
-          throw new CustomError('Generated adventure is missing required fields', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-        }
+        // Validate adventure details with comprehensive validation
+        adventureDetails = this.validateAdventureDetails(adventureDetails);
       } catch (err) {
         logger.error('Failed to parse adventure details:', aiResponse);
-        throw new CustomError('Invalid adventure details format from AI service', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+        // Try intelligent recovery for adventure details
+        const recoveredDetails = this.extractAdventureDetailsFromRawResponse(aiResponse);
+        if (recoveredDetails) {
+          adventureDetails = recoveredDetails;
+        } else {
+          throw new CustomError('Invalid adventure details format from AI service', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+        }
       }
 
       const processingTime = Date.now() - startTime;
@@ -290,22 +310,30 @@ class OpenAIService {
       return adventureDetails;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      logger.error(`Adventure generation failed after ${processingTime}ms:`, error);
-
-      if (error.status === 429) {
-        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
-      }
-
-      if (error.status === 401) {
-        throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-      }
-
-      // Propagate the error with more context
-      if (error instanceof CustomError) {
-        throw error;
-      }
-
-      throw new CustomError(`AI service error: ${error.message}`, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      return this.handleOpenAIError(error, 'generateAdventureFromPrompt', {
+        title: 'Default Adventure',
+        description: 'A default adventure generated due to an error',
+        setting: {
+          world_description: 'A mysterious realm',
+          time_period: { type: 'predefined', value: 'medieval' },
+          environment: 'Unknown territory'
+        },
+        characters: {
+          player_role: 'Adventurer',
+          key_npcs: []
+        },
+        plot: {
+          main_objective: 'Explore and discover',
+          secondary_goals: [],
+          plot_hooks: [],
+          victory_conditions: 'Complete your journey'
+        },
+        style_preferences: {
+          tone: 'serious',
+          complexity: 'moderate',
+          pacing: 'moderate'
+        }
+      });
     }
   }
 
@@ -921,6 +949,384 @@ Please respond with how the world reacts to this action. Be creative but logical
     }
     
     return enhancedPrompt;
+  }
+
+  /**
+   * Validate narration response structure with comprehensive validation
+   */
+  private validateNarrationResponse(response: any, context: GameContext): NarrationResponse {
+    const validatedResponse: NarrationResponse = {
+      narration: typeof response.narration === 'string' ? response.narration : '',
+      image_prompt: typeof response.image_prompt === 'string' ? response.image_prompt : `${context.worldState.location}, ${context.genre} scene`,
+      quick_actions: this.validateQuickActions(response.quick_actions),
+      state_changes: this.validateStateChanges(response.state_changes, context)
+    };
+
+    // If narration is empty, use the context to create a meaningful fallback
+    if (!validatedResponse.narration) {
+      validatedResponse.narration = `You are in ${context.worldState.location}. What would you like to do?`;
+    }
+
+    return validatedResponse;
+  }
+
+  /**
+   * Validate prologue response structure
+   */
+  private validatePrologueResponse(response: any, adventureDetails: AdventureDetails): NarrationResponse {
+    const validatedResponse: NarrationResponse = {
+      narration: typeof response.narration === 'string' ? response.narration : '',
+      image_prompt: typeof response.image_prompt === 'string' ? response.image_prompt : `${adventureDetails.setting.world_description}, opening scene`,
+      quick_actions: this.validateQuickActions(response.quick_actions),
+      state_changes: this.validateStateChanges(response.state_changes, {
+        genre: 'custom',
+        worldState: {
+          location: '',
+          inventory: [],
+          npcs: [],
+          flags: {},
+          current_chapter: 'prologue'
+        },
+        recentHistory: [],
+        playerInput: 'START',
+        sessionId: 'prologue'
+      } as GameContext)
+    };
+
+    // Ensure prologue has narration
+    if (!validatedResponse.narration) {
+      throw new Error('Prologue missing narration');
+    }
+
+    // Ensure prologue has appropriate quick actions
+    if (validatedResponse.quick_actions.length === 0) {
+      validatedResponse.quick_actions = ['Look around', 'Continue', 'Examine surroundings'];
+    }
+
+    return validatedResponse;
+  }
+
+  /**
+   * Validate adventure details structure
+   */
+  private validateAdventureDetails(details: any): AdventureDetails {
+    // Validate required top-level fields
+    if (!details || typeof details !== 'object') {
+      throw new Error('Invalid adventure details structure');
+    }
+
+    const validatedDetails: AdventureDetails = {
+      title: typeof details.title === 'string' ? details.title : 'Untitled Adventure',
+      description: typeof details.description === 'string' ? details.description : '',
+      setting: this.validateAdventureSetting(details.setting),
+      characters: this.validateAdventureCharacters(details.characters),
+      plot: this.validateAdventurePlot(details.plot),
+      style_preferences: this.validateStylePreferences(details.style_preferences)
+    };
+
+    return validatedDetails;
+  }
+
+  /**
+   * Validate quick actions array
+   */
+  private validateQuickActions(actions: any): string[] {
+    if (!Array.isArray(actions)) {
+      return ['Look around', 'Continue'];
+    }
+
+    // Filter to ensure all actions are strings and limit to 5 actions
+    const validatedActions = actions
+      .filter((action: any) => typeof action === 'string' && action.length > 0)
+      .slice(0, 5);
+
+    // If no valid actions, provide defaults
+    if (validatedActions.length === 0) {
+      return ['Look around', 'Continue'];
+    }
+
+    return validatedActions;
+  }
+
+  /**
+   * Validate state changes object
+   */
+  private validateStateChanges(stateChanges: any, context: GameContext): NarrationResponse['state_changes'] {
+    const validatedStateChanges: NarrationResponse['state_changes'] = {};
+
+    if (!stateChanges || typeof stateChanges !== 'object') {
+      return validatedStateChanges;
+    }
+
+    // Validate location
+    if (typeof stateChanges.location === 'string' && stateChanges.location.length > 0) {
+      validatedStateChanges.location = stateChanges.location;
+    }
+
+    // Validate inventory with enhanced structure validation
+    validatedStateChanges.inventory = this.validateInventoryStructure(stateChanges.inventory);
+
+    // Validate flags
+    if (stateChanges.flags && typeof stateChanges.flags === 'object' && stateChanges.flags !== null) {
+      validatedStateChanges.flags = stateChanges.flags;
+    } else {
+      validatedStateChanges.flags = {};
+    }
+
+    return validatedStateChanges;
+  }
+
+  /**
+   * Enhanced inventory structure validation
+   */
+  private validateInventoryStructure(inventory: any): string[] {
+    if (!inventory) return [];
+
+    // If it's already a valid array of strings
+    if (Array.isArray(inventory) && inventory.every(item => typeof item === 'string')) {
+      return inventory;
+    }
+
+    // If it's an array but contains non-strings, convert to strings
+    if (Array.isArray(inventory)) {
+      return inventory.map(item => String(item)).filter(item => item.length > 0);
+    }
+
+    // If it's a single item, convert to array
+    return [String(inventory)];
+  }
+
+  /**
+   * Validate adventure setting
+   */
+  private validateAdventureSetting(setting: any): AdventureDetails['setting'] {
+    if (!setting || typeof setting !== 'object') {
+      throw new Error('Invalid adventure setting structure');
+    }
+
+    // Handle time period validation for both old string and new object format
+    let validatedTimePeriod: any;
+    if (typeof setting.time_period === 'string') {
+      validatedTimePeriod = { type: 'predefined', value: setting.time_period };
+    } else if (setting.time_period && typeof setting.time_period === 'object') {
+      validatedTimePeriod = {
+        type: setting.time_period.type || 'predefined',
+        value: setting.time_period.value || 'medieval'
+      };
+      if (setting.time_period.customDescription) {
+        validatedTimePeriod.customDescription = setting.time_period.customDescription;
+      }
+      if (setting.time_period.technologicalLevel) {
+        validatedTimePeriod.technologicalLevel = setting.time_period.technologicalLevel;
+      }
+      if (setting.time_period.culturalContext) {
+        validatedTimePeriod.culturalContext = setting.time_period.culturalContext;
+      }
+    } else {
+      validatedTimePeriod = { type: 'predefined', value: 'medieval' };
+    }
+
+    return {
+      world_description: typeof setting.world_description === 'string' ? setting.world_description : '',
+      time_period: validatedTimePeriod,
+      environment: typeof setting.environment === 'string' ? setting.environment : '',
+      special_rules: typeof setting.special_rules === 'string' ? setting.special_rules : undefined,
+      locations: Array.isArray(setting.locations) ? setting.locations : undefined
+    };
+  }
+
+  /**
+   * Validate adventure characters
+   */
+  private validateAdventureCharacters(characters: any): AdventureDetails['characters'] {
+    if (!characters || typeof characters !== 'object') {
+      throw new Error('Invalid adventure characters structure');
+    }
+
+    const validatedKeyNpcs = Array.isArray(characters.key_npcs) 
+      ? characters.key_npcs.map((npc: any) => this.validateAdventureNpc(npc))
+      : [];
+
+    return {
+      player_role: typeof characters.player_role === 'string' ? characters.player_role : '',
+      key_npcs: validatedKeyNpcs,
+      relationships: Array.isArray(characters.relationships) ? characters.relationships : undefined
+    };
+  }
+
+  /**
+   * Validate individual adventure NPC
+   */
+  private validateAdventureNpc(npc: any): AdventureDetails['characters']['key_npcs'][0] {
+    if (!npc || typeof npc !== 'object') {
+      return {
+        id: 'npc_' + Date.now(),
+        name: 'Unknown Character',
+        description: 'A mysterious figure',
+        relationship: 'neutral',
+        traits: [],
+        importance: 'minor',
+        relationships: []
+      };
+    }
+
+    return {
+      id: typeof npc.id === 'string' ? npc.id : 'npc_' + Date.now(),
+      name: typeof npc.name === 'string' ? npc.name : 'Unknown Character',
+      description: typeof npc.description === 'string' ? npc.description : 'A mysterious figure',
+      relationship: typeof npc.relationship === 'string' ? npc.relationship : 'neutral',
+      personality: typeof npc.personality === 'string' ? npc.personality : undefined,
+      goals: typeof npc.goals === 'string' ? npc.goals : undefined,
+      traits: Array.isArray(npc.traits) ? npc.traits.filter((trait: any) => typeof trait === 'string') : [],
+      backstory: typeof npc.backstory === 'string' ? npc.backstory : undefined,
+      importance: ['major', 'minor', 'background'].includes(npc.importance) ? npc.importance : 'minor',
+      templateId: typeof npc.templateId === 'string' ? npc.templateId : undefined,
+      relationships: Array.isArray(npc.relationships) ? npc.relationships.map((rel: any) => this.validateNpcRelationship(rel)) : []
+    };
+  }
+
+  /**
+   * Validate NPC relationship
+   */
+  private validateNpcRelationship(relationship: any): AdventureDetails['characters']['key_npcs'][0]['relationships'][0] {
+    if (!relationship || typeof relationship !== 'object') {
+      return {
+        targetNpcId: '',
+        type: 'neutral',
+        description: 'A relationship',
+        strength: 5
+      };
+    }
+
+    return {
+      targetNpcId: typeof relationship.targetNpcId === 'string' ? relationship.targetNpcId : '',
+      type: ['ally', 'enemy', 'neutral', 'family', 'romantic', 'rival'].includes(relationship.type) ? relationship.type : 'neutral',
+      description: typeof relationship.description === 'string' ? relationship.description : 'A relationship',
+      strength: typeof relationship.strength === 'number' && relationship.strength >= 1 && relationship.strength <= 10 ? relationship.strength : 5
+    };
+  }
+
+  /**
+   * Validate adventure plot
+   */
+  private validateAdventurePlot(plot: any): AdventureDetails['plot'] {
+    if (!plot || typeof plot !== 'object') {
+      throw new Error('Invalid adventure plot structure');
+    }
+
+    return {
+      main_objective: typeof plot.main_objective === 'string' ? plot.main_objective : '',
+      secondary_goals: Array.isArray(plot.secondary_goals) 
+        ? plot.secondary_goals.filter((goal: any) => typeof goal === 'string') 
+        : [],
+      plot_hooks: Array.isArray(plot.plot_hooks) 
+        ? plot.plot_hooks.filter((hook: any) => typeof hook === 'string') 
+        : [],
+      victory_conditions: typeof plot.victory_conditions === 'string' ? plot.victory_conditions : '',
+      estimated_turns: typeof plot.estimated_turns === 'number' ? plot.estimated_turns : undefined,
+      themes: Array.isArray(plot.themes) 
+        ? plot.themes.filter((theme: any) => typeof theme === 'string') 
+        : undefined
+    };
+  }
+
+  /**
+   * Validate style preferences
+   */
+  private validateStylePreferences(stylePrefs: any): AdventureDetails['style_preferences'] {
+    if (!stylePrefs || typeof stylePrefs !== 'object') {
+      return {
+        tone: 'serious',
+        complexity: 'moderate',
+        pacing: 'moderate'
+      };
+    }
+
+    return {
+      tone: ['serious', 'humorous', 'dramatic', 'mixed'].includes(stylePrefs.tone) ? stylePrefs.tone : 'serious',
+      complexity: ['simple', 'moderate', 'complex'].includes(stylePrefs.complexity) ? stylePrefs.complexity : 'moderate',
+      pacing: ['slow', 'moderate', 'fast'].includes(stylePrefs.pacing) ? stylePrefs.pacing : 'moderate'
+    };
+  }
+
+  /**
+   * Extract information from raw AI response using intelligent parsing
+   */
+  private extractInfoFromRawResponse(rawResponse: string, context: GameContext): NarrationResponse | null {
+    try {
+      const extracted: Partial<NarrationResponse> = {};
+      
+      // Try to extract JSON from markdown code blocks first
+      const jsonMatch = rawResponse.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          return this.validateNarrationResponse(parsed, context);
+        } catch (e) {
+          // If JSON parsing fails, continue with regex extraction
+        }
+      }
+      
+      // Extract narration (everything if no clear structure)
+      extracted.narration = rawResponse.trim();
+      
+      // Try to extract quick actions from common patterns
+      const actionPatterns = [
+        /Actions?:\s*([^\n]+)/i,
+        /Options?:\s*([^\n]+)/i,
+        /You can:\s*([^\n]+)/i
+      ];
+      
+      for (const pattern of actionPatterns) {
+        const match = rawResponse.match(pattern);
+        if (match) {
+          // Try to parse as list
+          const actions = match[1].split(/[,;]|\band\b/).map(action => action.trim());
+          if (actions.length > 0) {
+            extracted.quick_actions = actions.slice(0, 3); // Limit to 3 actions
+            break;
+          }
+        }
+      }
+      
+      // Create a basic validated response
+      const basicResponse: any = {
+        narration: extracted.narration || `You are in ${context.worldState.location}. What would you like to do?`,
+        image_prompt: `${context.worldState.location}, ${context.genre} scene`,
+        quick_actions: extracted.quick_actions || ['Look around', 'Continue'],
+        state_changes: {}
+      };
+      
+      return this.validateNarrationResponse(basicResponse, context);
+    } catch (error) {
+      logger.warn('Failed to extract info from raw response:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract adventure details from raw AI response
+   */
+  private extractAdventureDetailsFromRawResponse(rawResponse: string): AdventureDetails | null {
+    try {
+      // Try to extract JSON from markdown code blocks first
+      const jsonMatch = rawResponse.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          return this.validateAdventureDetails(parsed);
+        } catch (e) {
+          // If JSON parsing fails, return null
+          return null;
+        }
+      }
+      
+      // If no JSON found in code blocks, return null
+      return null;
+    } catch (error) {
+      logger.warn('Failed to extract adventure details from raw response:', error);
+      return null;
+    }
   }
 
   private async generateFallbackImage(style: string): Promise<string> {

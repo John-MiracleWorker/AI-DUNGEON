@@ -96,6 +96,7 @@ export const GameScreen: React.FC = () => {
         narration: result.narration,
         image_prompt: '', // Not needed on frontend
         image_url: result.image_url,
+        image_error: result.image_error,
         quick_actions: result.quick_actions,
         world_state_snapshot: currentSession.world_state, // Will be updated below
         timestamp: new Date(result.metadata.timestamp),

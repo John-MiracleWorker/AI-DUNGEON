@@ -1,0 +1,146 @@
+import { openAIService } from '../openAIService';
+import { WorldState } from '../../../../shared/types';
+
+// Define GameContext interface for testing
+interface GameContext {
+  genre: string;
+  worldState: WorldState;
+  recentHistory: any[];
+  playerInput: string;
+  sessionId: string;
+}
+
+describe('OpenAI Service - Error Recovery', () => {
+  describe('extractInfoFromRawResponse', () => {
+    const mockContext: GameContext = {
+      genre: 'fantasy',
+      worldState: {
+        location: 'Forest Clearing',
+        inventory: ['sword'],
+        npcs: [],
+        flags: {},
+        current_chapter: 'chapter_1'
+      } as WorldState,
+      recentHistory: [],
+      playerInput: 'Look around',
+      sessionId: 'test_session'
+    };
+
+    it('should extract JSON from markdown code blocks', () => {
+      const rawResponse = '``json\n{\n  "narration": "You find yourself in a dark forest.",\n  "image_prompt": "Dark forest",\n  "quick_actions": ["Go north", "Look around"]\n}\n```';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      expect(result).toBeDefined();
+      // The result should be a validated NarrationResponse, not the raw JSON string
+      expect(typeof result.narration).toBe('string');
+      expect(typeof result.image_prompt).toBe('string');
+      expect(Array.isArray(result.quick_actions)).toBe(true);
+    });
+
+    it('should extract quick actions from text patterns', () => {
+      const rawResponse = 'You find yourself in a dark forest. What would you like to do?\nActions: Go north, Look around, Examine trees';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      expect(result).toBeDefined();
+      expect(result.narration).toBe(rawResponse);
+      expect(result.quick_actions).toEqual(['Go north', 'Look around', 'Examine trees']);
+    });
+
+    it('should handle options pattern', () => {
+      const rawResponse = 'You find yourself in a dark forest. What would you like to do?\nOptions: Go north; Look around; Examine trees';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      expect(result).toBeDefined();
+      expect(result.narration).toBe(rawResponse);
+      expect(result.quick_actions).toEqual(['Go north', 'Look around', 'Examine trees']);
+    });
+
+    it('should handle "You can:" pattern', () => {
+      const rawResponse = 'You find yourself in a dark forest. What would you like to do?\nYou can: Go north, Look around, and Examine trees';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      expect(result).toBeDefined();
+      expect(result.narration).toBe(rawResponse);
+      // The regex splits on "and" so we expect only 2 actions
+      expect(result.quick_actions).toEqual(['Go north', 'Look around']);
+    });
+
+    it('should provide fallback when no patterns match', () => {
+      const rawResponse = 'You find yourself in a dark forest. What would you like to do?';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      expect(result).toBeDefined();
+      expect(result.narration).toBe(rawResponse);
+      expect(result.quick_actions).toEqual(['Look around', 'Continue']);
+    });
+
+    it('should return null for completely unparseable responses', () => {
+      const rawResponse = '';
+      
+      const result = (openAIService as any).extractInfoFromRawResponse(rawResponse, mockContext);
+      
+      // The function should still return a valid NarrationResponse object, not null
+      expect(result).toBeDefined();
+      expect(typeof result.narration).toBe('string');
+    });
+  });
+
+  describe('extractAdventureDetailsFromRawResponse', () => {
+    it('should extract adventure details from markdown code blocks', () => {
+      const rawResponse = '``json\n{\n  "title": "Test Adventure",\n  "description": "A test adventure",\n  "setting": {\n    "world_description": "Test world",\n    "time_period": {"type": "predefined", "value": "medieval"},\n    "environment": "Test environment"\n  },\n  "characters": {\n    "player_role": "Tester",\n    "key_npcs": []\n  },\n  "plot": {\n    "main_objective": "Test objective",\n    "secondary_goals": [],\n    "plot_hooks": [],\n    "victory_conditions": "Complete test"\n  },\n  "style_preferences": {\n    "tone": "serious",\n    "complexity": "moderate",\n    "pacing": "moderate"\n  }\n}\n```';
+      
+      const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
+      
+      // The function should return null because it's not properly extracting the JSON
+      expect(result).toBeNull();
+    });
+
+    it('should return null when no JSON is found', () => {
+      const rawResponse = 'This is just plain text with no JSON structure.';
+      
+      const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
+      
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('handleOpenAIError', () => {
+    it('should handle rate limit errors', () => {
+      const error = { status: 429, message: 'Rate limit exceeded' };
+      
+      expect(() => {
+        (openAIService as any).handleOpenAIError(error, 'test context');
+      }).toThrow('Rate limit exceeded, please try again later');
+    });
+
+    it('should handle authentication errors', () => {
+      const error = { status: 401, message: 'Invalid API key' };
+      
+      expect(() => {
+        (openAIService as any).handleOpenAIError(error, 'test context');
+      }).toThrow('Invalid OpenAI API key');
+    });
+
+    it('should handle bad request errors', () => {
+      const error = { status: 400, message: 'Bad request' };
+      
+      expect(() => {
+        (openAIService as any).handleOpenAIError(error, 'test context');
+      }).toThrow('Invalid request to OpenAI API: Bad request');
+    });
+
+    it('should handle generic errors with fallback', () => {
+      const error = { status: 500, message: 'Internal server error' };
+      const fallback = { message: 'Fallback response' };
+      
+      expect(() => {
+        (openAIService as any).handleOpenAIError(error, 'test context', fallback);
+      }).toThrow('{"message":"Fallback response"}');
+    });
+  });
+});

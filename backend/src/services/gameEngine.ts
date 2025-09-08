@@ -26,8 +26,11 @@ import {
   generateTurnId,
   calculateProcessingTime 
 } from '../../../shared/utils';
+import { ImageEnhancementService } from './imageEnhancementService';
 
 class GameEngine {
+  private imageEnhancementService = new ImageEnhancementService();
+  
   async createNewGame(request: NewGameRequest, userId: string): Promise<NewGameResponse> {
     const startTime = Date.now();
     
@@ -54,13 +57,17 @@ class GameEngine {
 
       const prologueResponse = await openAIService.generateNarration(gameContext);
       
-      // Generate initial image
+      // Generate initial image with enhanced fallback and retry mechanism
       let imageUrl = '';
+      let imageError: any = null;
       try {
-        imageUrl = await openAIService.generateImage(
+        const imageResult = await this.imageEnhancementService.getCachedOrGenerateImage(
           prologueResponse.image_prompt, 
-          request.image_style
+          request.image_style,
+          (prompt, style, config) => openAIService.generateImage(prompt, style, undefined, config)
         );
+        imageUrl = imageResult.url;
+        imageError = imageResult.error;
       } catch (error) {
         logger.warn('Failed to generate prologue image:', error);
       }
@@ -186,14 +193,17 @@ class GameEngine {
       // Generate custom prologue using AI
       const prologueResponse = await openAIService.generateCustomPrologue(sanitizedDetails);
       
-      // Generate initial image with custom adventure context
+      // Generate initial image with enhanced fallback and retry mechanism
       let imageUrl = '';
+      let imageError: any = null;
       try {
-        imageUrl = await openAIService.generateImage(
+        const imageResult = await this.imageEnhancementService.getCachedOrGenerateImage(
           prologueResponse.image_prompt, 
           request.image_style,
-          sanitizedDetails
+          (prompt, style, config) => openAIService.generateImage(prompt, style, sanitizedDetails, config)
         );
+        imageUrl = imageResult.url;
+        imageError = imageResult.error;
       } catch (error) {
         logger.warn('Failed to generate custom adventure prologue image:', error);
       }
@@ -353,18 +363,21 @@ class GameEngine {
       const aiResponse = await openAIService.generateNarration(gameContext);
       const aiResponseTime = calculateProcessingTime(aiStartTime);
 
-      // Generate image
+      // Generate image with enhanced fallback and retry mechanism
       let imageUrl = '';
+      let imageError: any = null;
       let imageGenerationTime = 0;
       try {
         const imageStartTime = Date.now();
         const adventureDetails = gameSession.adventure_type === 'custom' ? 
           gameSession.custom_adventure?.original_details : undefined;
-        imageUrl = await openAIService.generateImage(
+        const imageResult = await this.imageEnhancementService.getCachedOrGenerateImage(
           aiResponse.image_prompt,
           gameSession.metadata.image_style,
-          adventureDetails
+          (prompt, style, config) => openAIService.generateImage(prompt, style, adventureDetails, config)
         );
+        imageUrl = imageResult.url;
+        imageError = imageResult.error;
         imageGenerationTime = calculateProcessingTime(imageStartTime);
       } catch (error) {
         logger.warn('Failed to generate turn image:', error);
@@ -414,6 +427,7 @@ class GameEngine {
         turn_id: newTurn.turn_id,
         narration: aiResponse.narration,
         image_url: imageUrl,
+        image_error: imageError,
         quick_actions: aiResponse.quick_actions,
         world_state_changes: worldStateChanges,
         metadata: {

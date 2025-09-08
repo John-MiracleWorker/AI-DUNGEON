@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Turn } from '../../types';
+import { ImageDisplay } from './ImageDisplay';
 
 interface TurnDisplayProps {
   turn: Turn;
@@ -15,44 +16,36 @@ export const TurnDisplay: React.FC<TurnDisplayProps> = ({
   onImagePress,
   isLatest = false
 }) => {
-  const [imageError, setImageError] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
-
   const handleRetry = () => {
-    setImageError(false);
-    setReloadKey((k) => k + 1);
+    // Refresh the component to trigger a new image load
+    forceUpdate();
+  };
+
+  // Simple force update mechanism
+  const [, setForceUpdate] = useState(0);
+  const forceUpdate = () => {
+    setForceUpdate(prev => prev + 1);
   };
 
   const renderImage = () => {
-    if (!turn.image_url || imageError) {
-      return (
-        <View style={styles.placeholderContainer} testID="image-placeholder">
-          <Text style={styles.placeholderText}>
-            {imageError ? 'Failed to load image.' : 'No image available.'}
-          </Text>
-          {imageError && (
-            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      );
-    }
-
     return (
-      <TouchableOpacity
-        style={styles.imageContainer}
-        onPress={onImagePress}
-        activeOpacity={0.8}
-      >
-        <Image
-          key={reloadKey}
-          source={{ uri: turn.image_url }}
-          style={styles.image}
-          resizeMode="cover"
-          onError={() => setImageError(true)}
-        />
-      </TouchableOpacity>
+      <ImageDisplay
+        imageUrl={turn.image_url}
+        onRetry={handleRetry}
+        onError={() => console.log('Image failed to load')}
+        onLoad={() => console.log('Image loaded successfully')}
+      />
+      {turn.image_error && (
+        <View style={styles.errorInfoContainer}>
+          <Text style={styles.errorInfoTitle}>Image Generation Issue:</Text>
+          <Text style={styles.errorInfoText}>
+            {turn.image_error.errorMessage}
+          </Text>
+          <Text style={styles.errorInfoDetail}>
+            Model: {turn.image_error.model} | Type: {turn.image_error.errorType}
+          </Text>
+        </View>
+      )
     );
   };
 
@@ -136,45 +129,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'justify',
   },
-  imageContainer: {
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginBottom: 12,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  image: {
-    width: width - 64,
-    height: (width - 64) * 0.75,
-    backgroundColor: '#404040',
-  },
-  placeholderContainer: {
-    width: width - 64,
-    height: (width - 64) * 0.75,
-    backgroundColor: '#404040',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  placeholderText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  retryButton: {
-    backgroundColor: '#6b46c1',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 4,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 12,
-  },
+
   quickActionsContainer: {
     backgroundColor: '#1a1a1a',
     borderRadius: 8,
@@ -198,5 +153,29 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     fontSize: 12,
     textAlign: 'right',
+  },
+  errorInfoContainer: {
+    backgroundColor: '#331d1d',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f87171',
+  },
+  errorInfoTitle: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  errorInfoText: {
+    color: '#fecaca',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  errorInfoDetail: {
+    color: '#9ca3af',
+    fontSize: 10,
+    fontStyle: 'italic',
   },
 });

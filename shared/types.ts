@@ -16,6 +16,14 @@ export interface WorldState {
   current_chapter: string;
 }
 
+export interface ImageGenerationError {
+  model: string;
+  errorType: 'rate_limit' | 'content_policy' | 'network' | 'unknown';
+  errorMessage: string;
+  timestamp: Date;
+  fallbackUsed: boolean;
+}
+
 export interface Turn {
   turn_id: string;
   turn_number: number;
@@ -23,6 +31,7 @@ export interface Turn {
   narration: string;
   image_prompt: string;
   image_url: string;
+  image_error?: ImageGenerationError;
   quick_actions: string[];
   world_state_snapshot: WorldState;
   timestamp: Date;
@@ -94,10 +103,19 @@ export interface TurnRequest {
   };
 }
 
+export interface ImageGenerationError {
+  model: string;
+  errorType: 'rate_limit' | 'content_policy' | 'network' | 'unknown';
+  errorMessage: string;
+  timestamp: Date;
+  fallbackUsed: boolean;
+}
+
 export interface TurnResponse {
   turn_id: string;
   narration: string;
   image_url: string;
+  image_error?: ImageGenerationError;
   quick_actions: string[];
   world_state_changes: {
     location?: string;

@@ -487,51 +487,17 @@ router.post('/new-prompt-game', [
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(HTTP_STATUS.BAD_REQUEST).json({
-      error: 'Validation failed',
-      message: errors.array().map(e => e.msg).join(', '),
-      status: HTTP_STATUS.BAD_REQUEST
-    });
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
   }
 
   if (!req.user) {
-    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
-      error: ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
-      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
-      status: HTTP_STATUS.UNAUTHORIZED
-    });
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
   }
 
-  try {
-    const promptRequest: PromptAdventureRequest = req.body;
-    const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
-    res.status(HTTP_STATUS.CREATED).json(result);
-  } catch (error: any) {
-    logger.error('Failed to create prompt adventure:', error);
-    
-    // Enhanced error response
-    if (error instanceof CustomError) {
-      return res.status(error.statusCode).json({
-        error: error.message,
-        message: error.message,
-        status: error.statusCode
-      });
-    }
-    
-    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      error: 'Failed to create adventure',
-      message: 'An unexpected error occurred while creating your adventure',
-      status: HTTP_STATUS.INTERNAL_SERVER_ERROR
-    });
-  }
-  
-  // This line should never be reached due to the return statements above
-  // but is added to satisfy TypeScript's requirement that all code paths return a value
-  return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-    error: 'Unexpected error',
-    message: 'An unexpected error occurred',
-    status: HTTP_STATUS.INTERNAL_SERVER_ERROR
-  });
+  const promptRequest: PromptAdventureRequest = req.body;
+  const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
 }));
 
 /**
