@@ -35,7 +35,7 @@ const GameCard: React.FC<GameCardProps> = ({ game, onPress }) => {
   const getGenreInfo = () => {
     // You could expand this to detect genre from world state
     return {
-      icon: 'castle',
+      icon: 'home',
       color: '#8b5cf6',
       label: 'Adventure'
     };
