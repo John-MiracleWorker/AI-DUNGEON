@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Alert, 
+import {
+  StyleSheet,
+  Alert,
   SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
-  Platform 
+  Platform
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAppSelector, useAppDispatch } from '../utils/hooks';
@@ -34,6 +33,8 @@ export const GameScreen: React.FC = () => {
   
   const [submitTurn, { isLoading: isSubmittingTurn }] = useSubmitTurnMutation();
   const [saveGame, { isLoading: isSaving }] = useSaveGameMutation();
+
+  const [isReady, setIsReady] = useState(false);
   
   // Get session ID from route params
   const sessionId = (route.params as any)?.sessionId || currentSession?.session_id;
@@ -45,6 +46,13 @@ export const GameScreen: React.FC = () => {
   );
 
   useEffect(() => {
+    if (!sessionId) {
+      Alert.alert('Error', 'No session ID provided');
+      (navigation as any).navigate('NewGame');
+    }
+  }, [sessionId, navigation]);
+
+  useEffect(() => {
     if (gameData && !currentSession) {
       dispatch(setCurrentSession({
         session_id: gameData.session_id,
@@ -54,6 +62,12 @@ export const GameScreen: React.FC = () => {
       }));
     }
   }, [gameData, currentSession, dispatch]);
+
+  useEffect(() => {
+    if (!isLoadingGame && currentSession) {
+      setIsReady(true);
+    }
+  }, [isLoadingGame, currentSession]);
 
   const handleSubmitTurn = async (playerInput: string) => {
     if (!currentSession) {
@@ -165,26 +179,10 @@ export const GameScreen: React.FC = () => {
   const handleSettings = () => {
     navigation.navigate('Settings' as never);
   };
-
-  if (isLoadingGame) {
+  if (!isReady) {
     return (
       <SafeAreaView style={styles.container}>
-        <ChatContainer turns={[]} isLoading={true} />
-      </SafeAreaView>
-    );
-  }
-
-  if (!currentSession) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ChatContainer turns={[]} />
-        <GameControls
-          onSaveGame={handleSaveGame}
-          onLoadGame={handleLoadGame}
-          onNewGame={handleNewGame}
-          onSettings={handleSettings}
-          isLoading={false}
-        />
+        <ChatContainer turns={currentSession?.turn_history || []} isLoading={true} />
       </SafeAreaView>
     );
   }
