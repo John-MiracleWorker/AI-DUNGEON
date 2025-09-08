@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -42,10 +42,18 @@ const GameCard: React.FC<GameCardProps> = ({ game, onPress }) => {
   };
   
   const genreInfo = getGenreInfo();
-  
+
   const handlePress = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
+  };
+
+  const [imageError, setImageError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const handleRetry = () => {
+    setImageError(false);
+    setReloadKey((k) => k + 1);
   };
   
   return (
@@ -56,16 +64,23 @@ const GameCard: React.FC<GameCardProps> = ({ game, onPress }) => {
     >
       {/* Game Image */}
       <View style={styles.imageContainer}>
-        {lastTurn?.image_url ? (
+        {!lastTurn?.image_url || imageError ? (
+          <View style={styles.placeholderImage} testID="image-placeholder">
+            <Ionicons name={genreInfo.icon as any} size={40} color={genreInfo.color} />
+            {imageError && (
+              <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Ionicons name="refresh" size={20} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
           <Image
+            key={reloadKey}
             source={{ uri: lastTurn.image_url }}
             style={styles.gameImage}
             resizeMode="cover"
+            onError={() => setImageError(true)}
           />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Ionicons name={genreInfo.icon as any} size={40} color={genreInfo.color} />
-          </View>
         )}
         
         {/* Genre Badge */}
@@ -210,6 +225,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  retryButton: {
+    marginTop: 8,
+    backgroundColor: '#6b46c1',
+    padding: 6,
+    borderRadius: 16,
   },
   genreBadge: {
     position: 'absolute',
