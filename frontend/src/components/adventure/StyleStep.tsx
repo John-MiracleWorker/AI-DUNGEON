@@ -92,14 +92,31 @@ const PACING_OPTIONS = [
   }
 ];
 
+// Helper functions for safe property access
+const getSafeTimePeriod = (adventure: any) => {
+  if (!adventure?.setting?.time_period) return 'Unknown';
+  
+  if (typeof adventure.setting.time_period === 'object' && 
+      adventure.setting.time_period !== null) {
+    return (adventure.setting.time_period as any).value || 'Unknown';
+  }
+  
+  return String(adventure.setting.time_period);
+};
+
+const getSafeEnvironment = (adventure: any) => {
+  return adventure?.setting?.environment?.substring(0, 50) || 'Unknown';
+};
+
 export const StyleStep: React.FC = () => {
   const dispatch = useAppDispatch();
   const currentAdventure = useAppSelector(selectCurrentAdventure);
   
-  const stylePreferences = currentAdventure?.style_preferences || {
-    tone: 'mixed',
-    complexity: 'moderate',
-    pacing: 'moderate'
+  // Safe initialization of style preferences with proper null checks
+  const stylePreferences = {
+    tone: currentAdventure?.style_preferences?.tone || 'mixed',
+    complexity: currentAdventure?.style_preferences?.complexity || 'moderate',
+    pacing: currentAdventure?.style_preferences?.pacing || 'moderate'
   };
 
   const handleStyleChange = (field: string, value: string) => {
@@ -275,7 +292,7 @@ export const StyleStep: React.FC = () => {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Setting:</Text>
             <Text style={styles.summaryValue}>
-              {currentAdventure?.setting.time_period} • {currentAdventure?.setting.environment.substring(0, 50)}...
+              {getSafeTimePeriod(currentAdventure)} • {getSafeEnvironment(currentAdventure)}...
             </Text>
           </View>
           <View style={styles.summaryRow}>
