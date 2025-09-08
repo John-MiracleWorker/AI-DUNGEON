@@ -1,8 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { 
-  NewGameRequest, 
-  NewGameResponse, 
-  TurnRequest, 
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import {
+  NewGameRequest,
+  NewGameResponse,
+  TurnRequest,
   TurnResponse,
   SaveGameRequest,
   SavedGamesResponse,
@@ -51,11 +53,21 @@ interface GenerateSpeechRequest {
   quality?: 'standard' | 'high';
 }
 
-// Get API URL from environment with better fallback handling
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 
-                    (process.env.NODE_ENV === 'production' ? 
-                     'https://your-production-url.com/api' : 
-                     'http://localhost:3001/api');
+// Determine API URL based on environment and platform
+const resolveApiBaseUrl = (): string => {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  if (Platform.OS === 'web') {
+    return '/api';
+  }
+
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  return `http://${host ?? 'localhost'}:3001/api`;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 // Add a health check function to verify API connectivity
 export const checkApiConnectivity = async (): Promise<boolean> => {

@@ -18,6 +18,12 @@ if ! grep -q "OPENAI_API_KEY=" .env || grep -q "your_openai_api_key_here" .env; 
     exit 1
 fi
 
+# Check if EXPO_PUBLIC_API_URL is set
+if ! grep -q "EXPO_PUBLIC_API_URL=" .env; then
+    echo "❌ EXPO_PUBLIC_API_URL not configured in .env file."
+    exit 1
+fi
+
 # Build and start services
 echo "🔨 Building Docker images..."
 docker-compose build --no-cache
