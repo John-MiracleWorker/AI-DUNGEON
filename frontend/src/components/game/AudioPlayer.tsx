@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Audio } from 'expo-av'; // Import expo-av
 import { useAppSelector, useAppDispatch } from '../../utils/hooks';
 import { updateAudioSettings } from '../../store/settingsSlice';
 import { useGenerateSpeechMutation } from '../../services/gameApi';
@@ -39,7 +40,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Replace audioRef with soundRef for expo-av Sound objects
+  const soundRef = useRef<Audio.Sound | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch audio when component mounts or when dependencies change
@@ -74,28 +76,34 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       // Clean up previous audio
       cleanupAudio();
       
-      // Create new audio element
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
+      // Create new sound object using expo-av
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: audioUrl },
+        { shouldPlay: false }
+      );
+      soundRef.current = sound;
       
-      audio.onloadedmetadata = () => {
-        setDuration(audio.duration);
-      };
+      // Get duration from sound status
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded) {
+        setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
+      }
       
-      audio.onended = () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-        if (onPlaybackComplete) onPlaybackComplete();
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
+      // Set up event listeners
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) {
+          setCurrentTime(status.positionMillis / 1000);
+          
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setCurrentTime(0);
+            if (onPlaybackComplete) onPlaybackComplete();
+            if (progressIntervalRef.current) {
+              clearInterval(progressIntervalRef.current);
+            }
+          }
         }
-      };
-      
-      audio.onerror = (e) => {
-        const errorMsg = 'Failed to load audio';
-        setError(errorMsg);
-        if (onError) onError(errorMsg);
-      };
+      });
       
     } catch (err: any) {
       const errorMsg = err.message || 'Failed to fetch audio';
@@ -104,10 +112,14 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   };
 
-  const cleanupAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+  const cleanupAudio = async () => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      } catch (err) {
+        console.warn('Error unloading sound:', err);
+      }
     }
     
     if (progressIntervalRef.current) {
@@ -117,23 +129,29 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   const togglePlayback = async () => {
-    if (!audioRef.current) return;
+    if (!soundRef.current) return;
     
     try {
-      if (isPlaying) {
-        audioRef.current.pause();
+      const status = await soundRef.current.getStatusAsync();
+      if (!status.isLoaded) return;
+      
+      if (status.isPlaying) {
+        await soundRef.current.pauseAsync();
         setIsPlaying(false);
         if (progressIntervalRef.current) {
           clearInterval(progressIntervalRef.current);
         }
       } else {
-        await audioRef.current.play();
+        await soundRef.current.playAsync();
         setIsPlaying(true);
         
         // Update progress
-        progressIntervalRef.current = setInterval(() => {
-          if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
+        progressIntervalRef.current = setInterval(async () => {
+          if (soundRef.current) {
+            const status = await soundRef.current.getStatusAsync();
+            if (status.isLoaded) {
+              setCurrentTime(status.positionMillis / 1000);
+            }
           }
         }, 100);
       }
@@ -147,10 +165,14 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   };
 
-  const handleSeek = (value: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = value;
-      setCurrentTime(value);
+  const handleSeek = async (value: number) => {
+    if (soundRef.current) {
+      try {
+        await soundRef.current.setPositionAsync(value * 1000);
+        setCurrentTime(value);
+      } catch (err) {
+        console.warn('Error seeking audio:', err);
+      }
     }
   };
 
@@ -163,8 +185,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   };
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+    const mins = Math.floor(seconds);
+    const secs = Math.floor((seconds - mins) * 60);
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 

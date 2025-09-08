@@ -4,6 +4,31 @@ import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import AudioPlayer from '../../../src/components/game/AudioPlayer';
 
+// Mock expo-av
+jest.mock('expo-av', () => ({
+  Audio: {
+    Sound: {
+      createAsync: jest.fn().mockResolvedValue({
+        sound: {
+          setStatusAsync: jest.fn(),
+          playAsync: jest.fn(),
+          pauseAsync: jest.fn(),
+          unloadAsync: jest.fn(),
+          getStatusAsync: jest.fn().mockResolvedValue({
+            isLoaded: true,
+            durationMillis: 100000,
+            positionMillis: 0,
+            isPlaying: false,
+            didJustFinish: false,
+          }),
+          setOnPlaybackStatusUpdate: jest.fn(),
+          setPositionAsync: jest.fn(),
+        }
+      })
+    }
+  }
+}));
+
 const mockStore = configureStore([]);
 
 describe('AudioPlayer', () => {
@@ -25,15 +50,6 @@ describe('AudioPlayer', () => {
         blob: () => Promise.resolve(new Blob(['audio data'], { type: 'audio/mpeg' })),
       } as any)
     );
-    
-    // Mock HTMLAudioElement
-    global.HTMLAudioElement = jest.fn().mockImplementation(() => ({
-      play: jest.fn().mockResolvedValue(undefined),
-      pause: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    }));
   });
 
   afterEach(() => {
@@ -72,5 +88,37 @@ describe('AudioPlayer', () => {
     );
 
     expect(queryByText('Audio Narration')).toBeNull();
+  });
+
+  it('calls generateSpeech when component mounts', async () => {
+    const mockGenerateSpeech = jest.fn();
+    
+    // Mock the useGenerateSpeechMutation hook
+    jest.mock('../../../src/services/gameApi', () => ({
+      ...jest.requireActual('../../../src/services/gameApi'),
+      useGenerateSpeechMutation: () => [mockGenerateSpeech, { isLoading: false }],
+    }));
+
+    render(
+      <Provider store={store}>
+        <AudioPlayer
+          sessionId="test-session"
+          narrationText="This is a test narration."
+        />
+      </Provider>
+    );
+
+    // Wait for async operations
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    expect(mockGenerateSpeech).toHaveBeenCalledWith({
+      sessionId: 'test-session',
+      body: {
+        text: 'This is a test narration.',
+        voice: 'alloy',
+        speed: 1.0,
+        quality: 'standard',
+      }
+    });
   });
 });
