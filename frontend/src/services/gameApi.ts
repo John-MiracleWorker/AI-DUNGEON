@@ -169,8 +169,16 @@ export const gameApi = createApi({
     }),
 
     getOptimizedImage: builder.query<string, OptimizedImageRequest>({
-      query: ({ imageUrl, size }) => 
+      query: ({ imageUrl, size }) =>
         `/images/optimize?url=${encodeURIComponent(imageUrl)}&size=${size}`,
+    }),
+
+    generateImage: builder.mutation<{ image_url: string }, { prompt: string; style?: string }>({
+      query: (body) => ({
+        url: '/generate-image',
+        method: 'POST',
+        body,
+      }),
     }),
 
     getUserStats: builder.query<{
@@ -304,6 +312,7 @@ export const {
   useGetRecentGamesQuery,
   useSyncOfflineActionsMutation,
   useGetOptimizedImageQuery,
+  useGenerateImageMutation,
   useGetUserStatsQuery,
   useUpdateUserPreferencesMutation,
   // TTS hooks
