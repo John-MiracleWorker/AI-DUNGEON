@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Slider,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av'; // Import expo-av
@@ -238,7 +238,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 onSlidingComplete={handleSeek}
                 minimumTrackTintColor="#6b46c1"
                 maximumTrackTintColor="#404040"
-                thumbStyle={styles.thumb}
               />
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
@@ -273,7 +272,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 onSlidingComplete={handleSpeedChange}
                 minimumTrackTintColor="#6b46c1"
                 maximumTrackTintColor="#404040"
-                thumbStyle={styles.thumb}
               />
               <Text style={styles.speedText}>{playbackSpeed}x</Text>
             </View>
@@ -392,12 +390,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     width: 40,
     textAlign: 'right',
-  },
-  thumb: {
-    backgroundColor: '#6b46c1',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
   },
 });
 

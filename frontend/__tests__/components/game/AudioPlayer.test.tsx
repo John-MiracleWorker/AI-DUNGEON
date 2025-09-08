@@ -4,6 +4,8 @@ import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
 import AudioPlayer from '../../../src/components/game/AudioPlayer';
 
+jest.mock('@react-native-community/slider', () => 'Slider');
+
 // Mock expo-av
 jest.mock('expo-av', () => ({
   Audio: {
