@@ -33,7 +33,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     container_name: dungeon-ai-backend-dev
-    restart: unless-stopped
+    restart: "no"
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongodb:27017/dungeon-ai
