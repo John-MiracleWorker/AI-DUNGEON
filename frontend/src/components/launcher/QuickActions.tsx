@@ -153,10 +153,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginBottom: 16,
     elevation: 4,
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: '0px 4px 8px rgba(139, 92, 246, 0.3)',
   },
   primaryGradient: {
     padding: 24,
