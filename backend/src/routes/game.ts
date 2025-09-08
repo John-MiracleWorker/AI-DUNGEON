@@ -729,6 +729,79 @@ router.get('/adventure-templates', asyncHandler(async (req: AuthRequest, res: Re
 
 /**
  * @swagger
+ * /api/generate-image:
+ *   post:
+ *     summary: Generate an image from a prompt
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *               style:
+ *                 type: string
+ *                 enum: [fantasy_art, comic_book, painterly]
+ *     responses:
+ *       200:
+ *         description: Generated image URL
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/generate-image', [
+  body('prompt')
+    .isString()
+    .isLength({ min: 1, max: 4000 })
+    .withMessage('Prompt must be between 1 and 4000 characters'),
+  body('style')
+    .optional()
+    .isIn(Object.values(IMAGE_STYLES))
+    .withMessage('Invalid image style'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: 'Validation failed',
+      details: errors.array(),
+      message: errors.array().map(e => e.msg).join(', ')
+    });
+  }
+
+  if (!req.user) {
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: 'Unauthorized',
+      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS
+    });
+  }
+
+  const { prompt, style } = req.body;
+  try {
+    const imageUrl = await openAIService.generateImage(
+      prompt,
+      style || IMAGE_STYLES.FANTASY_ART
+    );
+    return res.status(HTTP_STATUS.OK).json({ image_url: imageUrl });
+  } catch (error: any) {
+    logger.error('Image generation error:', error);
+    if (error instanceof CustomError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      error: ERROR_MESSAGES.IMAGE_GENERATION_ERROR,
+      message: 'Failed to generate image'
+    });
+  }
+}));
+
+/**
+ * @swagger
  * /api/save-adventure-template:
  *   post:
  *     summary: Save adventure as public template

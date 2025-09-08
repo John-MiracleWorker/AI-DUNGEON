@@ -10,6 +10,7 @@ export const API_ENDPOINTS = {
   ADVENTURE_SUGGESTIONS: '/api/adventure-suggestions',
   SAVE_ADVENTURE_TEMPLATE: '/api/save-adventure-template',
   ADVENTURE_TEMPLATES: '/api/adventure-templates',
+  GENERATE_IMAGE: '/api/generate-image',
 } as const;
 
 export const GENRES = {

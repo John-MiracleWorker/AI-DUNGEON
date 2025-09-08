@@ -172,6 +172,15 @@ export interface ImageGenerationConfig {
   enhancementLevel: 'basic' | 'detailed' | 'artistic';
 }
 
+export interface GenerateImageRequest {
+  prompt: string;
+  style?: 'fantasy_art' | 'comic_book' | 'painterly';
+}
+
+export interface GenerateImageResponse {
+  image_url: string;
+}
+
 export interface EnhancedImageRequest {
   prompt: string;
   adventureContext: AdventureDetails;
