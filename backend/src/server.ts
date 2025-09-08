@@ -20,6 +20,14 @@ import { authMiddleware } from './middleware/auth';
 import gameRoutes from './routes/game';
 import authRoutes from './routes/auth';
 
+// Ensure critical environment variables are defined
+const requiredEnvVars = ['MONGODB_URI', 'REDIS_URL', 'JWT_SECRET', 'OPENAI_API_KEY'];
+const missingEnvVars = requiredEnvVars.filter((name) => !process.env[name]);
+if (missingEnvVars.length > 0) {
+  missingEnvVars.forEach((name) => logger.error(`Missing environment variable: ${name}`));
+  process.exit(1);
+}
+
 // Remove duplicate dotenv.config() since it's now at the top
 const app = express();
 const PORT = process.env.PORT || 3001;
