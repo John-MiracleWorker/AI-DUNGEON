@@ -263,7 +263,7 @@ class OpenAIService {
       const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
 
       // Validate the prompt before sending to OpenAI
-      const validation = this.validateImagePrompt(enhancedPrompt);
+      const validation = await this.validateImagePrompt(enhancedPrompt);
       if (!validation.isValid) {
         logger.warn('Image prompt validation failed:', validation.errors);
         throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
@@ -338,7 +338,7 @@ class OpenAIService {
     const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
     
     // Validate the prompt before sending to OpenAI
-    const validation = this.validateImagePrompt(enhancedPrompt);
+    const validation = await this.validateImagePrompt(enhancedPrompt);
     if (!validation.isValid) {
       logger.warn('Image prompt validation failed:', validation.errors);
       throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
@@ -373,35 +373,39 @@ class OpenAIService {
   /**
    * Validate image prompt to prevent rejections by OpenAI
    */
-  private validateImagePrompt(prompt: string): { isValid: boolean; errors: string[] } {
+  private async validateImagePrompt(prompt: string): Promise<{ isValid: boolean; errors: string[] }> {
     const errors: string[] = [];
-    
+
     // Length validation
     if (prompt.length > 4000) {
       errors.push('Prompt exceeds maximum length of 4000 characters');
     }
-    
-    // Content validation for inappropriate patterns
+
+    // Content validation for clearly inappropriate patterns
     const inappropriatePatterns = [
-      /violence/gi,
-      /blood/gi,
       /gore/gi,
       /explicit/gi,
       /nudity/gi,
       /sexual/gi
     ];
-    
+
     for (const pattern of inappropriatePatterns) {
-      if (prompt.match(pattern)) {
+      if (pattern.test(prompt)) {
         errors.push(`Prompt contains potentially inappropriate content: ${pattern}`);
       }
     }
-    
+
+    // Moderation API check for additional safety
+    const isAllowed = await this.moderateContent(prompt);
+    if (!isAllowed) {
+      errors.push('Prompt flagged by content moderation');
+    }
+
     // Check for special characters that might cause issues
     if (prompt.includes('```') || prompt.includes('"""')) {
       errors.push('Prompt contains invalid formatting characters');
     }
-    
+
     return {
       isValid: errors.length === 0,
       errors
@@ -426,7 +430,7 @@ class OpenAIService {
       const enhancedPrompt = this.buildContextualPrompt(prompt, adventureContext);
       
       // Validate the prompt before sending to OpenAI
-      const validation = this.validateImagePrompt(enhancedPrompt);
+      const validation = await this.validateImagePrompt(enhancedPrompt);
       if (!validation.isValid) {
         logger.warn('Enhanced image prompt validation failed:', validation.errors);
         throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
