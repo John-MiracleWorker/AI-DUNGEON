@@ -24,6 +24,7 @@ import {
 } from '../store/customAdventureSlice';
 import { useCreateCustomGameMutation } from '../services/gameApi';
 import { setCurrentSession } from '../store/gameSlice';
+import { logout } from '../store/authSlice';
 
 // Import step components (to be created)
 import BasicInfoStep from '../components/adventure/BasicInfoStep';
@@ -74,6 +75,7 @@ export const CustomAdventureScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const settings = useAppSelector(state => state.settings);
+  const isAuthenticated = useAppSelector(state => state.auth.isAuthenticated);
   
   const currentStep = useAppSelector(selectCurrentStep);
   const isCreating = useAppSelector(selectIsCreating);
@@ -140,6 +142,15 @@ export const CustomAdventureScreen: React.FC = () => {
   };
 
   const handleCreateAdventure = async () => {
+    // Check authentication state
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        'You must be logged in to create an adventure. Please log in and try again.'
+      );
+      return;
+    }
+
     if (!currentAdventure) {
       Alert.alert('Error', 'Adventure details are missing');
       return;
@@ -184,7 +195,7 @@ export const CustomAdventureScreen: React.FC = () => {
     if (validationErrors.length > 0) {
       Alert.alert(
         'Validation Error',
-        'Please fix the following issues:\n' + validationErrors.join('\n')
+        'Please fix the following issues:\\n' + validationErrors.join('\\n')
       );
       return;
     }
@@ -229,22 +240,57 @@ export const CustomAdventureScreen: React.FC = () => {
       
       // Use safer navigation with error handling
       try {
-        (navigation as any).navigate('Game', { sessionId: result.session_id });
+        if (navigation && typeof navigation.navigate === 'function') {
+          // Navigate to the main tabs first, then to the game screen
+          navigation.navigate('MainTabs' as never, { 
+            screen: 'Games', 
+            params: { 
+              screen: 'Game', 
+              params: { sessionId: result.session_id } 
+            } 
+          } as never);
+        } else {
+          throw new Error('Navigation not available');
+        }
       } catch (navError) {
         console.error('Navigation failed:', navError);
         Alert.alert(
           'Navigation Error',
           'Adventure created successfully but navigation failed. Please go to the game library to access your adventure.'
         );
-        navigation.goBack(); // Navigate back to previous screen as fallback
+        // Navigate back to previous screen as fallback
+        if (navigation && typeof navigation.goBack === 'function') {
+          navigation.goBack();
+        }
       }
 
     } catch (error: any) {
       console.error('Failed to create custom adventure:', error);
-      Alert.alert(
-        'Creation Failed',
-        error.data?.message || 'Failed to create adventure. Please try again.'
-      );
+      
+      // Reset loading state
+      dispatch(stopCreating());
+      
+      // Enhanced error categorization
+      let errorMessage = 'Failed to create adventure. Please try again.';
+      
+      if (error.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error.status === 401) {
+        errorMessage = 'Authentication failed. Please log in and try again.';
+        dispatch(logout());
+      } else if (error.status === 403) {
+        errorMessage = 'Access denied. You do not have permission to create adventures.';
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+      } else if (error.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.status === 503) {
+        errorMessage = 'Service unavailable. Please try again later.';
+      } else if (error.status === 400) {
+        errorMessage = 'Invalid request. Please check your adventure details.';
+      }
+      
+      Alert.alert('Creation Failed', errorMessage);
     }
   };
 

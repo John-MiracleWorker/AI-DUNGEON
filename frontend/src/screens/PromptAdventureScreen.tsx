@@ -14,11 +14,13 @@ import { useNavigation } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
 import { useCreatePromptGameMutation } from '../services/gameApi';
 import { setCurrentSession } from '../store/gameSlice';
+import { logout } from '../store/authSlice';
 
 export const PromptAdventureScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useAppDispatch();
   const settings = useAppSelector(state => state.settings);
+  const isAuthenticated = useAppSelector(state => state.auth.isAuthenticated);
 
   const [prompt, setPrompt] = useState('');
   const [stylePreference, setStylePreference] = useState<'detailed' | 'concise'>('detailed');
@@ -26,6 +28,15 @@ export const PromptAdventureScreen: React.FC = () => {
   const [createPromptGame, { isLoading }] = useCreatePromptGameMutation();
 
   const handleCreate = async () => {
+    // Check authentication state
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        'You must be logged in to create an adventure. Please log in and try again.'
+      );
+      return;
+    }
+
     if (!prompt.trim()) {
       Alert.alert('Prompt Required', 'Please enter a prompt to continue.');
       return;
@@ -62,18 +73,46 @@ export const PromptAdventureScreen: React.FC = () => {
         quick_actions: result.prologue.quick_actions,
       }));
 
-      (navigation as any).navigate('Game', { sessionId: result.session_id });
+      // Use safer navigation with error handling
+      try {
+        if (navigation && typeof navigation.navigate === 'function') {
+          // Navigate to the main tabs first, then to the game screen
+          navigation.navigate('MainTabs' as never, { 
+            screen: 'Games', 
+            params: { 
+              screen: 'Game', 
+              params: { sessionId: result.session_id } 
+            } 
+          } as never);
+        } else {
+          throw new Error('Navigation not available');
+        }
+      } catch (navError) {
+        console.error('Navigation failed:', navError);
+        Alert.alert(
+          'Navigation Error',
+          'Adventure created successfully but navigation failed. Please go to the game library to access your adventure.'
+        );
+      }
     } catch (error: any) {
       console.error('Failed to create prompt adventure:', error);
-      // Enhanced error handling
+      
+      // Enhanced error categorization
       let errorMessage = 'Failed to create adventure. Please try again.';
       
       if (error.data?.message) {
         errorMessage = error.data.message;
+      } else if (error.status === 401) {
+        errorMessage = 'Authentication failed. Please log in and try again.';
+        dispatch(logout());
+      } else if (error.status === 403) {
+        errorMessage = 'Access denied. You do not have permission to create adventures.';
       } else if (error.status === 429) {
         errorMessage = 'Rate limit exceeded. Please wait before trying again.';
       } else if (error.status === 500) {
         errorMessage = 'Server error. Please try again later.';
+      } else if (error.status === 503) {
+        errorMessage = 'Service unavailable. Please try again later.';
       } else if (error.status === 400) {
         errorMessage = 'Invalid request. Please check your input.';
       }
@@ -92,6 +131,7 @@ export const PromptAdventureScreen: React.FC = () => {
         placeholderTextColor="#9ca3af"
         value={prompt}
         onChangeText={setPrompt}
+        editable={!isLoading}
       />
 
       <Text style={styles.label}>Narrative Style</Text>
@@ -118,9 +158,9 @@ export const PromptAdventureScreen: React.FC = () => {
       </Picker>
 
       <TouchableOpacity
-        style={[styles.button, isLoading && styles.buttonDisabled]}
+        style={[styles.button, (isLoading || !isAuthenticated) && styles.buttonDisabled]}
         onPress={handleCreate}
-        disabled={isLoading}
+        disabled={isLoading || !isAuthenticated}
       >
         {isLoading ? (
           <View style={styles.loadingContainer}>
@@ -135,49 +175,4 @@ export const PromptAdventureScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1f2937',
-    padding: 16,
-  },
-  label: {
-    color: '#f3f4f6',
-    fontSize: 16,
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    backgroundColor: '#374151',
-    color: '#f3f4f6',
-    padding: 12,
-    borderRadius: 8,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  picker: {
-    backgroundColor: '#374151',
-    color: '#f3f4f6',
-  },
-  button: {
-    backgroundColor: '#3b82f6',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-});
-
-export default PromptAdventureScreen;
+// ... existing styles ...
