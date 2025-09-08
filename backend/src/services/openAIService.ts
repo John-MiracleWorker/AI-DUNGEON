@@ -2,7 +2,13 @@ import axios from 'axios';
 import { logger } from '../utils/logger';
 import { CustomError } from '../middleware/errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../../../shared/constants';
-import { WorldState, Turn, StyleConfig } from '../../../shared/types';
+import { 
+  WorldState, 
+  Turn, 
+  StyleConfig, 
+  AdventureDetails,
+  CustomPromptContext 
+} from '../../../shared/types';
 
 export interface NarrationResponse {
   narration: string;
@@ -21,6 +27,13 @@ export interface GameContext {
   recentHistory: Turn[];
   playerInput: string;
   sessionId: string;
+  adventureDetails?: AdventureDetails;
+  adaptiveElements?: {
+    discovered_locations: string[];
+    met_npcs: string[];
+    completed_objectives: string[];
+    story_branches: string[];
+  };
 }
 
 class OpenAIService {
@@ -60,8 +73,14 @@ class OpenAIService {
     const startTime = Date.now();
 
     try {
-      const systemPrompt = this.buildSystemPrompt(context.genre);
-      const contextPrompt = this.buildContextPrompt(context);
+      const systemPrompt = context.adventureDetails 
+        ? this.buildCustomSystemPrompt(context.adventureDetails, context.adaptiveElements)
+        : this.buildSystemPrompt(context.genre);
+      
+      const contextPrompt = context.adventureDetails
+        ? this.buildCustomContextPrompt(context)
+        : this.buildContextPrompt(context);
+      
       const userPrompt = this.buildPlayerActionPrompt(context.playerInput);
 
       const messages = [
@@ -152,7 +171,95 @@ class OpenAIService {
     }
   }
 
-  async generateImage(prompt: string, style: string): Promise<string> {
+  /**
+   * Generate custom adventure prologue
+   */
+  async generateCustomPrologue(adventureDetails: AdventureDetails): Promise<NarrationResponse> {
+    if (!this.apiKey) {
+      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const systemPrompt = this.buildCustomPrologueSystemPrompt(adventureDetails);
+      const prologuePrompt = this.buildProloguePrompt(adventureDetails);
+
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: prologuePrompt }
+      ];
+
+      const response = await axios.post(
+        `${this.baseURL}/chat/completions`,
+        {
+          model: 'gpt-4',
+          messages,
+          temperature: 0.9,
+          max_tokens: 1000,
+          top_p: 0.95,
+          frequency_penalty: 0.2,
+          presence_penalty: 0.4,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 45000,
+        }
+      );
+
+      const aiResponse = response.data.choices[0]?.message?.content;
+      if (!aiResponse) {
+        throw new Error('No prologue response from OpenAI');
+      }
+
+      let parsedResponse: NarrationResponse;
+      try {
+        parsedResponse = JSON.parse(aiResponse);
+        
+        // Validate prologue response
+        if (!parsedResponse.narration) {
+          throw new Error('Prologue missing narration');
+        }
+        if (!parsedResponse.image_prompt) {
+          parsedResponse.image_prompt = `${adventureDetails.setting.world_description}, opening scene`;
+        }
+        if (!Array.isArray(parsedResponse.quick_actions)) {
+          parsedResponse.quick_actions = ['Look around', 'Continue', 'Examine surroundings'];
+        }
+        if (!parsedResponse.state_changes) {
+          parsedResponse.state_changes = {};
+        }
+        
+      } catch (parseError) {
+        logger.error('Failed to parse custom prologue response:', aiResponse);
+        throw new Error('Invalid prologue response format');
+      }
+
+      const processingTime = Date.now() - startTime;
+      logger.info(`Custom adventure prologue generated in ${processingTime}ms`);
+
+      return parsedResponse;
+
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      logger.error(`Custom prologue generation failed after ${processingTime}ms:`, error);
+
+      if (error.response?.status === 429) {
+        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
+      }
+
+      if (error.response?.status === 401) {
+        throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      }
+
+      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async generateImage(prompt: string, style: string, adventureDetails?: AdventureDetails): Promise<string> {
     if (!this.apiKey) {
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
@@ -160,7 +267,7 @@ class OpenAIService {
     const startTime = Date.now();
 
     try {
-      const enhancedPrompt = this.enhanceImagePrompt(prompt, style);
+      const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
 
       const response = await axios.post(
         `${this.baseURL}/images/generations`,
@@ -260,6 +367,205 @@ CRITICAL: Always respond with valid JSON in this exact format:
 Do not include any text outside the JSON structure.`;
   }
 
+  /**
+   * Build system prompt for custom adventures
+   */
+  private buildCustomSystemPrompt(
+    adventureDetails: AdventureDetails, 
+    adaptiveElements?: {
+      discovered_locations: string[];
+      met_npcs: string[];
+      completed_objectives: string[];
+      story_branches: string[];
+    }
+  ): string {
+    const { title, setting, characters, plot, style_preferences } = adventureDetails;
+    
+    let systemPrompt = `You are an expert Dungeon Master running "${title}", a custom interactive adventure.
+
+ADVENTURE WORLD:
+${setting.world_description}
+
+TIME PERIOD: ${setting.time_period}
+ENVIRONMENT: ${setting.environment}`;
+
+    if (setting.special_rules) {
+      systemPrompt += `\nSPECIAL RULES: ${setting.special_rules}`;
+    }
+
+    systemPrompt += `\n\nPLAYER ROLE: ${characters.player_role}`;
+
+    if (characters.key_npcs && characters.key_npcs.length > 0) {
+      systemPrompt += `\n\nKEY NPCs:`;
+      characters.key_npcs.forEach(npc => {
+        systemPrompt += `\n- ${npc.name}: ${npc.description} (${npc.relationship})`;
+        if (npc.personality) {
+          systemPrompt += ` Personality: ${npc.personality}`;
+        }
+        if (npc.goals) {
+          systemPrompt += ` Goals: ${npc.goals}`;
+        }
+      });
+    }
+
+    systemPrompt += `\n\nMAIN OBJECTIVE: ${plot.main_objective}`;
+    systemPrompt += `\nVICTORY CONDITIONS: ${plot.victory_conditions}`;
+
+    if (plot.secondary_goals && plot.secondary_goals.length > 0) {
+      systemPrompt += `\nSECONDARY GOALS: ${plot.secondary_goals.join(', ')}`;
+    }
+
+    if (plot.plot_hooks && plot.plot_hooks.length > 0) {
+      systemPrompt += `\nPOTENTIAL PLOT HOOKS: ${plot.plot_hooks.join(', ')}`;
+    }
+
+    // Add style preferences
+    systemPrompt += `\n\nSTYLE PREFERENCES:
+- Tone: ${style_preferences.tone}
+- Complexity: ${style_preferences.complexity}
+- Pacing: ${style_preferences.pacing}`;
+
+    // Add adaptive elements if available
+    if (adaptiveElements) {
+      if (adaptiveElements.discovered_locations.length > 0) {
+        systemPrompt += `\n\nDISCOVERED LOCATIONS: ${adaptiveElements.discovered_locations.join(', ')}`;
+      }
+      if (adaptiveElements.met_npcs.length > 0) {
+        systemPrompt += `\nMET NPCs: ${adaptiveElements.met_npcs.join(', ')}`;
+      }
+      if (adaptiveElements.completed_objectives.length > 0) {
+        systemPrompt += `\nCOMPLETED OBJECTIVES: ${adaptiveElements.completed_objectives.join(', ')}`;
+      }
+    }
+
+    systemPrompt += `\n\nCreate immersive second-person narration that:
+- Stays true to the adventure's world, characters, and objectives
+- Responds naturally to player actions with vivid detail
+- Maintains consistency with the established setting and NPCs
+- Provides rich sensory descriptions appropriate to the tone
+- Moves toward the main objective while allowing exploration
+- Suggests 2-3 logical actions that fit the adventure's style
+- Uses the specified tone (${style_preferences.tone}) and pacing (${style_preferences.pacing})
+
+CRITICAL: Always respond with valid JSON in this exact format:
+{
+  "narration": "Your rich, descriptive response in second person",
+  "image_prompt": "Detailed scene description for image generation",
+  "quick_actions": ["Action 1", "Action 2", "Action 3"],
+  "state_changes": {
+    "location": "new location name if changed",
+    "inventory": ["items to add to inventory"],
+    "flags": {"story_flag": "value"}
+  }
+}
+
+Do not include any text outside the JSON structure.`;
+
+    return systemPrompt;
+  }
+
+  /**
+   * Build system prompt specifically for custom adventure prologues
+   */
+  private buildCustomPrologueSystemPrompt(adventureDetails: AdventureDetails): string {
+    const { title, setting, characters, plot, style_preferences } = adventureDetails;
+    
+    return `You are an expert Dungeon Master creating the opening scene for "${title}", a custom interactive adventure.
+
+ADVENTURE SETUP:
+- World: ${setting.world_description}
+- Time Period: ${setting.time_period}
+- Environment: ${setting.environment}
+- Player Role: ${characters.player_role}
+- Main Objective: ${plot.main_objective}
+- Tone: ${style_preferences.tone}
+- Pacing: ${style_preferences.pacing}
+
+Create an engaging opening scene that:
+- Establishes the world and atmosphere immediately
+- Introduces the player character in their role
+- Sets up the main adventure hook naturally
+- Matches the specified tone and style
+- Provides a vivid, immersive introduction
+- Ends with clear options for the player to begin their journey
+
+Your prologue should be ${style_preferences.pacing === 'fast' ? 'concise and action-packed' : 
+  style_preferences.pacing === 'slow' ? 'detailed and atmospheric' : 'balanced between description and action'}.
+
+CRITICAL: Respond with valid JSON in this exact format:
+{
+  "narration": "Your engaging prologue in second person",
+  "image_prompt": "Detailed opening scene description for image generation",
+  "quick_actions": ["Starting Action 1", "Starting Action 2", "Starting Action 3"],
+  "state_changes": {
+    "location": "starting location name",
+    "inventory": ["starting items if any"],
+    "flags": {"prologue_complete": true}
+  }
+}
+
+Do not include any text outside the JSON structure.`;
+  }
+
+  /**
+   * Build prologue generation prompt
+   */
+  private buildProloguePrompt(adventureDetails: AdventureDetails): string {
+    return `Generate the opening scene for this custom adventure. The player should be introduced to their role and the world in an engaging way that naturally leads to the main quest.
+
+Remember:
+- Set the scene vividly in ${adventureDetails.setting.environment}
+- Show, don't tell, the player's role as ${adventureDetails.characters.player_role}
+- Create intrigue around the main objective without revealing everything
+- Match the ${adventureDetails.style_preferences.tone} tone throughout
+- Provide meaningful starting choices for the player`;
+  }
+
+  /**
+   * Build context prompt for custom adventures
+   */
+  private buildCustomContextPrompt(context: GameContext): string {
+    const { worldState, recentHistory, adventureDetails, adaptiveElements } = context;
+    
+    let contextStr = `CURRENT WORLD STATE:
+Location: ${worldState.location}
+Inventory: ${worldState.inventory.join(', ') || 'empty'}
+Chapter: ${worldState.current_chapter}`;
+
+    if (worldState.npcs && worldState.npcs.length > 0) {
+      contextStr += `\nNPCs present: ${worldState.npcs.map(npc => npc.name).join(', ')}`;
+    }
+
+    if (Object.keys(worldState.flags).length > 0) {
+      contextStr += `\nStory flags: ${JSON.stringify(worldState.flags)}`;
+    }
+
+    // Add custom adventure specific context
+    if (adventureDetails) {
+      contextStr += `\n\nADVENTURE PROGRESS:`;
+      if (adaptiveElements) {
+        if (adaptiveElements.discovered_locations.length > 0) {
+          contextStr += `\nLocations discovered: ${adaptiveElements.discovered_locations.join(', ')}`;
+        }
+        if (adaptiveElements.met_npcs.length > 0) {
+          contextStr += `\nNPCs encountered: ${adaptiveElements.met_npcs.join(', ')}`;
+        }
+        if (adaptiveElements.completed_objectives.length > 0) {
+          contextStr += `\nObjectives completed: ${adaptiveElements.completed_objectives.join(', ')}`;
+        }
+      }
+    }
+
+    if (recentHistory.length > 0) {
+      contextStr += '\n\nRECENT EVENTS:';
+      recentHistory.slice(-3).forEach((turn, index) => {
+        contextStr += `\n${index + 1}. Player: "${turn.player_input}" → ${turn.narration.substring(0, 100)}...`;
+      });
+    }
+
+    return contextStr;
+  }
+
   private buildContextPrompt(context: GameContext): string {
     const { worldState, recentHistory } = context;
     
@@ -292,12 +598,36 @@ Chapter: ${worldState.current_chapter}`;
 Please respond with how the world reacts to this action. Be creative but logical.`;
   }
 
-  private enhanceImagePrompt(prompt: string, style: string): string {
+  private enhanceImagePrompt(prompt: string, style: string, adventureDetails?: AdventureDetails): string {
     const styleKey = style as keyof StyleConfig;
     const config = this.styleConfig[styleKey] || this.styleConfig.fantasy_art;
     
+    let enhancedPrompt = prompt;
+    
+    // Add custom adventure context to image prompt if available
+    if (adventureDetails) {
+      const { setting, style_preferences } = adventureDetails;
+      
+      // Incorporate setting details
+      if (setting.time_period !== 'custom') {
+        enhancedPrompt += `, ${setting.time_period} time period`;
+      }
+      
+      // Add environmental context
+      enhancedPrompt += `, ${setting.environment}`;
+      
+      // Adjust based on tone
+      if (style_preferences.tone === 'serious') {
+        enhancedPrompt += ', moody lighting, dramatic atmosphere';
+      } else if (style_preferences.tone === 'humorous') {
+        enhancedPrompt += ', whimsical, lighthearted atmosphere';
+      } else if (style_preferences.tone === 'dramatic') {
+        enhancedPrompt += ', cinematic lighting, epic composition';
+      }
+    }
+    
     // Add style prefixes and suffixes
-    let enhancedPrompt = `${config.prefix} ${prompt}, ${config.suffix}`;
+    enhancedPrompt = `${config.prefix} ${enhancedPrompt}, ${config.suffix}`;
     
     // Ensure prompt length is within limits
     if (enhancedPrompt.length > 4000) {

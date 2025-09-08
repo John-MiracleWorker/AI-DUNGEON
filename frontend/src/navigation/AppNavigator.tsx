@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { GameScreen } from '../screens/GameScreen';
 import { NewGameScreen } from '../screens/NewGameScreen';
+import { CustomAdventureScreen } from '../screens/CustomAdventureScreen';
 import { GameLauncher } from '../screens/GameLauncher';
 import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingFlow } from '../screens/OnboardingFlow';
@@ -25,6 +26,7 @@ const linking = {
             screens: {
               Launcher: 'launcher',
               NewGame: 'new-game/:genre?',
+              CustomAdventure: 'custom-adventure',
               Game: 'game/:sessionId',
             },
           },
@@ -66,6 +68,14 @@ const GameStackNavigator: React.FC = () => {
         component={NewGameScreen}
         options={{
           title: 'New Adventure',
+          headerTitleAlign: 'center',
+        }}
+      />
+      <Stack.Screen
+        name="CustomAdventure"
+        component={CustomAdventureScreen}
+        options={{
+          title: 'Create Custom Adventure',
           headerTitleAlign: 'center',
         }}
       />

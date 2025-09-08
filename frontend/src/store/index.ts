@@ -7,6 +7,7 @@ import uiReducer from './uiSlice';
 import settingsReducer from './settingsSlice';
 import launcherReducer from './launcherSlice';
 import offlineReducer from './offlineSlice';
+import customAdventureReducer from './customAdventureSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     settings: settingsReducer,
     launcher: launcherReducer,
     offline: offlineReducer,
+    customAdventure: customAdventureReducer,
     [gameApi.reducerPath]: gameApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>

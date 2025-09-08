@@ -5,11 +5,25 @@ export * from '../../../shared/types';
 import type { 
   WorldState as SharedWorldState, 
   Turn as SharedTurn, 
-  SavedGame as SharedSavedGame 
+  SavedGame as SharedSavedGame,
+  CustomAdventureRequest,
+  CustomAdventureResponse,
+  AdventureDetails,
+  AdventureValidationResult,
+  AdventureSuggestion
 } from '../../../shared/types';
 
 // Re-export with local names to avoid conflicts
-export type { SharedWorldState as WorldState, SharedTurn as Turn, SharedSavedGame as SavedGame };
+export type { 
+  SharedWorldState as WorldState, 
+  SharedTurn as Turn, 
+  SharedSavedGame as SavedGame,
+  CustomAdventureRequest,
+  CustomAdventureResponse,
+  AdventureDetails,
+  AdventureValidationResult,
+  AdventureSuggestion
+};
 
 // Additional frontend-specific types
 export interface GameUIState {
@@ -74,4 +88,83 @@ export interface APIResponse<T> {
   data?: T;
   error?: string;
   isLoading: boolean;
+}
+
+// Custom Adventure Frontend Types
+export interface CustomAdventureState {
+  currentAdventure: AdventureDetails | null;
+  validationResult: AdventureValidationResult | null;
+  suggestions: AdventureSuggestion[];
+  userAdventures: UserAdventureItem[];
+  publicTemplates: AdventureTemplate[];
+  isCreating: boolean;
+  isValidating: boolean;
+  currentStep: number;
+  maxSteps: number;
+}
+
+export interface UserAdventureItem {
+  adventure_id: string;
+  title: string;
+  description: string;
+  created_at: string;
+  usage_count: number;
+  is_template: boolean;
+  tags: string[];
+}
+
+export interface AdventureTemplate {
+  adventure_id: string;
+  title: string;
+  description: string;
+  usage_count: number;
+  created_at: string;
+  tags: string[];
+  estimated_duration: string;
+}
+
+export interface AdventureWizardStep {
+  id: number;
+  title: string;
+  description: string;
+  component: string;
+  isComplete: boolean;
+  isValid: boolean;
+  data: any;
+}
+
+export interface GameCreationOptions {
+  gameType: 'preset' | 'custom' | 'template';
+  templateId?: string;
+  genre?: string;
+  style_preference: 'detailed' | 'concise';
+  image_style: 'fantasy_art' | 'comic_book' | 'painterly';
+  safety_filter?: boolean;
+  content_rating?: 'PG-13' | 'R';
+}
+
+// Form validation types
+export interface FormFieldValidation {
+  isValid: boolean;
+  error?: string;
+  touched: boolean;
+}
+
+export interface AdventureFormValidation {
+  title: FormFieldValidation;
+  description: FormFieldValidation;
+  world_description: FormFieldValidation;
+  time_period: FormFieldValidation;
+  environment: FormFieldValidation;
+  player_role: FormFieldValidation;
+  main_objective: FormFieldValidation;
+  victory_conditions: FormFieldValidation;
+}
+
+// Navigation types
+export interface NavigationState {
+  canGoBack: boolean;
+  canGoNext: boolean;
+  currentStepIndex: number;
+  totalSteps: number;
 }

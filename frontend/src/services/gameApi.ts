@@ -7,7 +7,14 @@ import {
   SaveGameRequest,
   SavedGamesResponse,
   GameSessionSummary,
-  GameSession 
+  GameSession,
+  CustomAdventureRequest,
+  CustomAdventureResponse,
+  AdventureDetails,
+  AdventureValidationResult,
+  AdventureSuggestion,
+  UserAdventureItem,
+  AdventureTemplate
 } from '../types';
 import { PendingAction } from '../store/offlineSlice';
 
@@ -46,7 +53,7 @@ export const gameApi = createApi({
       return headers;
     },
   }),
-  tagTypes: ['Game', 'SavedGames', 'Sessions'],
+  tagTypes: ['Game', 'SavedGames', 'Sessions', 'Adventure', 'AdventureTemplates'],
   endpoints: (builder) => ({
     // Authentication
     createAnonymousSession: builder.mutation<{ token: string; user: any }, void>({
@@ -159,6 +166,69 @@ export const gameApi = createApi({
     healthCheck: builder.query<{ status: string; timestamp: number }, void>({
       query: () => '/health',
     }),
+
+    // Custom Adventure endpoints
+    createCustomGame: builder.mutation<CustomAdventureResponse, CustomAdventureRequest>({
+      query: (customRequest) => ({
+        url: '/new-custom-game',
+        method: 'POST',
+        body: customRequest,
+      }),
+      invalidatesTags: ['Sessions', 'Adventure'],
+    }),
+
+    validateAdventure: builder.mutation<AdventureValidationResult, { adventure_details: AdventureDetails }>({
+      query: (body) => ({
+        url: '/validate-adventure',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    getAdventureSuggestions: builder.mutation<{ suggestions: AdventureSuggestion[] }, { partial_adventure?: Partial<AdventureDetails> }>({
+      query: (body) => ({
+        url: '/adventure-suggestions',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    getUserAdventures: builder.query<{ adventures: UserAdventureItem[] }, void>({
+      query: () => '/user-adventures',
+      providesTags: ['Adventure'],
+    }),
+
+    getAdventureTemplates: builder.query<{ templates: AdventureTemplate[] }, { limit?: number }>({
+      query: ({ limit = 20 } = {}) => `/adventure-templates?limit=${limit}`,
+      providesTags: ['AdventureTemplates'],
+    }),
+
+    saveAdventureAsTemplate: builder.mutation<{ message: string; template_id: string }, { 
+      adventure_id: string; 
+      is_public?: boolean; 
+    }>({
+      query: (body) => ({
+        url: '/save-adventure-template',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Adventure', 'AdventureTemplates'],
+    }),
+
+    createGameFromTemplate: builder.mutation<CustomAdventureResponse, {
+      templateId: string;
+      style_preference: 'detailed' | 'concise';
+      image_style: 'fantasy_art' | 'comic_book' | 'painterly';
+      safety_filter?: boolean;
+      content_rating?: 'PG-13' | 'R';
+    }>({
+      query: ({ templateId, ...body }) => ({
+        url: `/create-from-template/${templateId}`,
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Sessions'],
+    }),
   }),
 });
 
@@ -178,4 +248,12 @@ export const {
   useGetUserStatsQuery,
   useUpdateUserPreferencesMutation,
   useHealthCheckQuery,
+  // Custom Adventure hooks
+  useCreateCustomGameMutation,
+  useValidateAdventureMutation,
+  useGetAdventureSuggestionsMutation,
+  useGetUserAdventuresQuery,
+  useGetAdventureTemplatesQuery,
+  useSaveAdventureAsTemplateMutation,
+  useCreateGameFromTemplateMutation,
 } = gameApi;

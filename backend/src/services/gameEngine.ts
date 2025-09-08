@@ -1,5 +1,6 @@
-import { GameSession, SavedGame } from '../models';
+import { GameSession, SavedGame, CustomAdventure } from '../models';
 import { openAIService, GameContext } from './openAIService';
+import { CustomAdventureValidator } from './customAdventureValidator';
 import { logger } from '../utils/logger';
 import { CustomError } from '../middleware/errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES, VALIDATION_RULES } from '../../../shared/constants';
@@ -11,7 +12,10 @@ import {
   WorldState, 
   Turn,
   SaveGameRequest,
-  SavedGamesResponse 
+  SavedGamesResponse,
+  CustomAdventureRequest,
+  CustomAdventureResponse,
+  AdventureDetails 
 } from '../../../shared/types';
 import { 
   validatePlayerInput, 
@@ -100,7 +104,8 @@ class GameEngine {
         settings: {
           difficulty: 'normal',
           safety_filter: request.safety_filter ?? false
-        }
+        },
+        adventure_type: 'preset'
       });
 
       await gameSession.save();
@@ -120,6 +125,146 @@ class GameEngine {
 
     } catch (error) {
       logger.error('Failed to create new game:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new custom adventure game
+   */
+  async createCustomGame(request: CustomAdventureRequest, userId: string): Promise<CustomAdventureResponse> {
+    const startTime = Date.now();
+    
+    try {
+      // Validate the custom adventure request
+      const validation = CustomAdventureValidator.validateCustomAdventureRequest(request);
+      if (!validation.isValid) {
+        throw new CustomError(
+          `Validation failed: ${validation.errors.map(e => e.message).join(', ')}`, 
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+
+      // Sanitize adventure content
+      const sanitizedDetails = CustomAdventureValidator.sanitizeAdventureContent(request.adventure_details);
+      
+      const sessionId = generateSessionId();
+      const adventureId = `adv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Save the custom adventure
+      const customAdventure = new CustomAdventure({
+        adventure_id: adventureId,
+        user_id: userId,
+        title: sanitizedDetails.title,
+        description: sanitizedDetails.description,
+        setting: sanitizedDetails.setting,
+        characters: sanitizedDetails.characters,
+        plot: sanitizedDetails.plot,
+        style_preferences: sanitizedDetails.style_preferences,
+        created_at: new Date(),
+        is_template: false,
+        usage_count: 1
+      });
+
+      await customAdventure.save();
+
+      // Create initial world state based on custom adventure
+      const initialWorldState: WorldState = {
+        location: this.getCustomStartingLocation(sanitizedDetails),
+        inventory: this.getCustomStartingInventory(sanitizedDetails),
+        npcs: [],
+        flags: { adventure_id: adventureId },
+        current_chapter: 'Prologue'
+      };
+
+      // Generate custom prologue using AI
+      const prologueResponse = await openAIService.generateCustomPrologue(sanitizedDetails);
+      
+      // Generate initial image with custom adventure context
+      let imageUrl = '';
+      try {
+        imageUrl = await openAIService.generateImage(
+          prologueResponse.image_prompt, 
+          request.image_style,
+          sanitizedDetails
+        );
+      } catch (error) {
+        logger.warn('Failed to generate custom adventure prologue image:', error);
+      }
+
+      // Create initial turn
+      const initialTurn: Turn = {
+        turn_id: generateTurnId(),
+        turn_number: 0,
+        player_input: 'START',
+        narration: prologueResponse.narration,
+        image_prompt: prologueResponse.image_prompt,
+        image_url: imageUrl,
+        quick_actions: prologueResponse.quick_actions,
+        world_state_snapshot: { ...initialWorldState },
+        timestamp: new Date(),
+        processing_metadata: {
+          ai_response_time: 0,
+          image_generation_time: 0,
+          tokens_used: 0
+        }
+      };
+
+      // Apply any state changes from prologue
+      const updatedWorldState = this.applyStateChanges(
+        initialWorldState, 
+        prologueResponse.state_changes
+      );
+
+      // Create and save custom game session
+      const gameSession = new GameSession({
+        session_id: sessionId,
+        user_id: userId,
+        world_state: updatedWorldState,
+        turn_history: [initialTurn],
+        metadata: {
+          genre: 'custom',
+          image_style: request.image_style,
+          created_at: new Date(),
+          last_played: new Date(),
+          total_turns: 1
+        },
+        settings: {
+          difficulty: 'normal',
+          safety_filter: request.safety_filter ?? false
+        },
+        adventure_type: 'custom',
+        custom_adventure: {
+          adventure_id: adventureId,
+          original_details: sanitizedDetails,
+          adaptive_elements: {
+            discovered_locations: [],
+            met_npcs: [],
+            completed_objectives: [],
+            story_branches: [],
+            unlocked_plot_hooks: []
+          }
+        }
+      });
+
+      await gameSession.save();
+
+      const processingTime = calculateProcessingTime(startTime);
+      logger.info(`Custom adventure created in ${processingTime}ms for user ${userId}`);
+
+      return {
+        adventure_id: adventureId,
+        session_id: sessionId,
+        prologue: {
+          narration: prologueResponse.narration,
+          image_url: imageUrl,
+          quick_actions: prologueResponse.quick_actions
+        },
+        world_state: updatedWorldState
+      };
+
+    } catch (error) {
+      logger.error('Failed to create custom adventure:', error);
       throw error;
     }
   }
@@ -166,7 +311,11 @@ class GameEngine {
         worldState: gameSession.world_state,
         recentHistory: gameSession.turn_history.slice(-5), // Last 5 turns
         playerInput: sanitizedInput,
-        sessionId: request.session_id
+        sessionId: request.session_id,
+        adventureDetails: gameSession.adventure_type === 'custom' ? 
+          gameSession.custom_adventure?.original_details : undefined,
+        adaptiveElements: gameSession.adventure_type === 'custom' ? 
+          gameSession.custom_adventure?.adaptive_elements : undefined
       };
 
       // Generate AI response
@@ -179,9 +328,12 @@ class GameEngine {
       let imageGenerationTime = 0;
       try {
         const imageStartTime = Date.now();
+        const adventureDetails = gameSession.adventure_type === 'custom' ? 
+          gameSession.custom_adventure?.original_details : undefined;
         imageUrl = await openAIService.generateImage(
           aiResponse.image_prompt,
-          gameSession.metadata.image_style
+          gameSession.metadata.image_style,
+          adventureDetails
         );
         imageGenerationTime = calculateProcessingTime(imageStartTime);
       } catch (error) {
@@ -189,10 +341,9 @@ class GameEngine {
       }
 
       // Apply state changes
-      const updatedWorldState = this.applyStateChanges(
-        gameSession.world_state,
-        aiResponse.state_changes
-      );
+      const updatedWorldState = gameSession.adventure_type === 'custom' ?
+        await this.applyStateChangesWithTracking(gameSession.world_state, aiResponse.state_changes, gameSession) :
+        this.applyStateChanges(gameSession.world_state, aiResponse.state_changes);
 
       // Create new turn
       const newTurn: Turn = {
@@ -357,12 +508,123 @@ class GameEngine {
       fantasy: 'A misty crossroads where ancient stone paths meet beneath towering oak trees',
       'sci-fi': 'A sterile white corridor aboard a massive space station',
       horror: 'A dimly lit Victorian mansion foyer with creaking floorboards',
-      modern: 'A bustling city street corner during the evening rush hour'
+      modern: 'A bustling city street corner during the evening rush hour',
+      custom: 'The beginning of your custom adventure'
     };
 
     return locations[genre as keyof typeof locations] || locations.fantasy;
   }
 
+  /**
+   * Get starting location for custom adventure
+   */
+  private getCustomStartingLocation(adventureDetails: AdventureDetails): string {
+    // Extract a suitable starting location from the adventure details
+    const { setting, plot } = adventureDetails;
+    
+    // Try to derive from setting or use a generic opening based on environment
+    if (setting.locations && setting.locations.length > 0) {
+      return setting.locations[0];
+    }
+    
+    // Generate based on environment and world description
+    const environment = setting.environment.toLowerCase();
+    const worldDesc = setting.world_description.toLowerCase();
+    
+    if (environment.includes('city') || worldDesc.includes('urban')) {
+      return `A bustling area in the heart of ${setting.environment}`;
+    } else if (environment.includes('forest') || worldDesc.includes('woods')) {
+      return `A forest clearing in ${setting.environment}`;
+    } else if (environment.includes('dungeon') || worldDesc.includes('underground')) {
+      return `The entrance to ${setting.environment}`;
+    } else if (environment.includes('tavern') || environment.includes('inn')) {
+      return `Inside ${setting.environment}`;
+    } else {
+      return `At the beginning of your journey in ${setting.environment}`;
+    }
+  }
+
+  /**
+   * Get starting inventory for custom adventure
+   */
+  private getCustomStartingInventory(adventureDetails: AdventureDetails): string[] {
+    const { characters, setting } = adventureDetails;
+    const inventory: string[] = [];
+    
+    // Add basic items based on player role
+    const role = characters.player_role.toLowerCase();
+    
+    if (role.includes('warrior') || role.includes('fighter') || role.includes('soldier')) {
+      inventory.push('sword', 'leather armor');
+    } else if (role.includes('mage') || role.includes('wizard') || role.includes('sorcerer')) {
+      inventory.push('spellbook', 'staff', 'magic pouch');
+    } else if (role.includes('rogue') || role.includes('thief') || role.includes('assassin')) {
+      inventory.push('lockpicks', 'daggers', 'hood');
+    } else if (role.includes('ranger') || role.includes('hunter') || role.includes('scout')) {
+      inventory.push('bow', 'arrows', 'rope');
+    } else if (role.includes('cleric') || role.includes('priest') || role.includes('healer')) {
+      inventory.push('holy symbol', 'healing herbs', 'prayer beads');
+    } else if (role.includes('merchant') || role.includes('trader')) {
+      inventory.push('coin purse', 'trade goods', 'ledger');
+    }
+    
+    // Add environment-specific items
+    const environment = setting.environment.toLowerCase();
+    if (environment.includes('cold') || environment.includes('winter') || environment.includes('snow')) {
+      inventory.push('warm cloak');
+    } else if (environment.includes('desert') || environment.includes('hot')) {
+      inventory.push('water flask');
+    } else if (environment.includes('underwater') || environment.includes('ship')) {
+      inventory.push('waterproof pack');
+    }
+    
+    // Limit to 3-5 starting items
+    return inventory.slice(0, Math.min(5, inventory.length));
+  }
+
+  /**
+   * Apply state changes and optionally track custom adventure progress
+   */
+  private async applyStateChangesWithTracking(currentState: WorldState, changes: any, gameSession?: any): Promise<WorldState> {
+    const newState = { ...currentState };
+
+    if (changes.location) {
+      newState.location = changes.location;
+      
+      // Track discovered locations for custom adventures
+      if (gameSession?.adventure_type === 'custom' && gameSession.custom_adventure) {
+        await gameSession.addDiscoveredLocation(changes.location);
+      }
+    }
+
+    if (changes.inventory && Array.isArray(changes.inventory)) {
+      // Ensure inventory is always an array
+      if (!Array.isArray(newState.inventory)) {
+        newState.inventory = [];
+      }
+      newState.inventory = [...newState.inventory, ...changes.inventory];
+    }
+
+    if (changes.flags) {
+      newState.flags = { ...newState.flags, ...changes.flags };
+      
+      // Track objectives and story progress for custom adventures
+      if (gameSession?.adventure_type === 'custom' && gameSession.custom_adventure) {
+        // Check for objective completion flags
+        for (const [key, value] of Object.entries(changes.flags)) {
+          if (key.includes('objective') && value === 'complete') {
+            await gameSession.completeObjective(key);
+          }
+        }
+      }
+    }
+
+    return newState;
+  }
+
+  /**
+   * Apply state changes (synchronous version for backward compatibility)
+   */
   private applyStateChanges(currentState: WorldState, changes: any): WorldState {
     const newState = { ...currentState };
 
@@ -419,6 +681,122 @@ class GameEngine {
       },
       flags_updated: flagsUpdated
     };
+  }
+
+  /**
+   * Get user's custom adventures
+   */
+  async getUserCustomAdventures(userId: string) {
+    try {
+      const adventures = await CustomAdventure.findByUserId(userId);
+      
+      return {
+        adventures: adventures.map((adventure: any) => ({
+          adventure_id: adventure.adventure_id,
+          title: adventure.title,
+          description: adventure.description,
+          created_at: adventure.created_at.toISOString(),
+          usage_count: adventure.usage_count,
+          is_template: adventure.is_template,
+          tags: adventure.tags || []
+        }))
+      };
+    } catch (error) {
+      logger.error('Failed to get user custom adventures:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save adventure as template
+   */
+  async saveAdventureAsTemplate(adventureId: string, userId: string, isPublic: boolean = false) {
+    try {
+      const adventure = await CustomAdventure.findOne({
+        adventure_id: adventureId,
+        user_id: userId
+      });
+      
+      if (!adventure) {
+        throw new CustomError('Adventure not found', HTTP_STATUS.NOT_FOUND);
+      }
+      
+      adventure.is_template = true;
+      adventure.is_public = isPublic;
+      await adventure.save();
+      
+      logger.info(`Adventure ${adventureId} saved as template by user ${userId}`);
+      
+      return {
+        message: 'Adventure saved as template successfully',
+        template_id: adventure.adventure_id
+      };
+    } catch (error) {
+      logger.error('Failed to save adventure as template:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get public adventure templates
+   */
+  async getPublicAdventureTemplates(limit: number = 20) {
+    try {
+      const templates = await CustomAdventure.findPublicTemplates(limit);
+      
+      return {
+        templates: templates.map((template: any) => ({
+          adventure_id: template.adventure_id,
+          title: template.title,
+          description: template.description,
+          usage_count: template.usage_count,
+          created_at: template.created_at.toISOString(),
+          tags: template.tags || [],
+          estimated_duration: template.estimatedDuration
+        }))
+      };
+    } catch (error) {
+      logger.error('Failed to get public adventure templates:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create game from template
+   */
+  async createGameFromTemplate(templateId: string, request: NewGameRequest, userId: string): Promise<CustomAdventureResponse> {
+    try {
+      const template = await CustomAdventure.findOne({
+        adventure_id: templateId,
+        is_template: true
+      });
+      
+      if (!template) {
+        throw new CustomError('Template not found', HTTP_STATUS.NOT_FOUND);
+      }
+      
+      // Increment usage count
+      await template.incrementUsage();
+      
+      // Create custom adventure request from template
+      const customRequest: CustomAdventureRequest = {
+        ...request,
+        genre: 'custom',
+        adventure_details: {
+          title: template.title,
+          description: template.description,
+          setting: template.setting,
+          characters: template.characters,
+          plot: template.plot,
+          style_preferences: template.style_preferences
+        }
+      };
+      
+      return this.createCustomGame(customRequest, userId);
+    } catch (error) {
+      logger.error('Failed to create game from template:', error);
+      throw error;
+    }
   }
 }
 

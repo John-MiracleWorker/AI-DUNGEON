@@ -1,10 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
 import { gameEngine } from '../services/gameEngine';
+import { CustomAdventureValidator, AdventureSuggestionService } from '../services/customAdventureValidator';
 import { AuthRequest } from '../middleware/auth';
 import { CustomError, asyncHandler } from '../middleware/errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES, GENRES, IMAGE_STYLES, STYLE_PREFERENCES } from '../../../shared/constants';
-import { NewGameRequest, TurnRequest, SaveGameRequest } from '../../../shared/types';
+import { 
+  NewGameRequest, 
+  TurnRequest, 
+  SaveGameRequest,
+  CustomAdventureRequest,
+  AdventureDetails 
+} from '../../../shared/types';
 
 const router = Router();
 
@@ -338,6 +345,340 @@ router.get('/sessions', asyncHandler(async (req: AuthRequest, res: Response) => 
   }));
 
   res.status(HTTP_STATUS.OK).json({ sessions: result });
+}));
+
+/**
+ * @swagger
+ * /api/new-custom-game:
+ *   post:
+ *     summary: Create a new custom adventure game session
+ *     tags: [Game]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - genre
+ *               - style_preference
+ *               - image_style
+ *               - adventure_details
+ *             properties:
+ *               genre:
+ *                 type: string
+ *                 enum: [custom]
+ *               style_preference:
+ *                 type: string
+ *                 enum: [detailed, concise]
+ *               image_style:
+ *                 type: string
+ *                 enum: [fantasy_art, comic_book, painterly]
+ *               adventure_details:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Custom adventure session created
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/new-custom-game', [
+  body('genre')
+    .equals('custom')
+    .withMessage('Genre must be "custom" for custom adventures'),
+  body('style_preference')
+    .isIn(Object.values(STYLE_PREFERENCES))
+    .withMessage('Invalid style preference'),
+  body('image_style')
+    .isIn(Object.values(IMAGE_STYLES))
+    .withMessage('Invalid image style'),
+  body('adventure_details')
+    .isObject()
+    .withMessage('Adventure details are required'),
+  body('adventure_details.title')
+    .isLength({ min: 3, max: 100 })
+    .withMessage('Title must be between 3 and 100 characters'),
+  body('adventure_details.description')
+    .isLength({ min: 10, max: 1000 })
+    .withMessage('Description must be between 10 and 1000 characters'),
+  body('safety_filter')
+    .optional()
+    .isBoolean()
+    .withMessage('Safety filter must be a boolean'),
+  body('content_rating')
+    .optional()
+    .isIn(['PG-13', 'R'])
+    .withMessage('Content rating must be PG-13 or R'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const customAdventureRequest: CustomAdventureRequest = req.body;
+  const result = await gameEngine.createCustomGame(customAdventureRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/validate-adventure:
+ *   post:
+ *     summary: Validate custom adventure details
+ *     tags: [Adventure]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               adventure_details:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Validation results
+ *       400:
+ *         description: Invalid request
+ */
+router.post('/validate-adventure', [
+  body('adventure_details')
+    .isObject()
+    .withMessage('Adventure details are required')
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const adventureDetails: AdventureDetails = req.body.adventure_details;
+  const validation = CustomAdventureValidator.validateAdventureDetails(adventureDetails);
+
+  res.status(HTTP_STATUS.OK).json(validation);
+}));
+
+/**
+ * @swagger
+ * /api/adventure-suggestions:
+ *   post:
+ *     summary: Get AI-powered suggestions for adventure creation
+ *     tags: [Adventure]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               partial_adventure:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Adventure suggestions
+ *       500:
+ *         description: Server error
+ */
+router.post('/adventure-suggestions', [
+  body('partial_adventure')
+    .optional()
+    .isObject()
+    .withMessage('Partial adventure must be an object')
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const partialAdventure = req.body.partial_adventure || {};
+  const suggestions = await AdventureSuggestionService.generateSuggestions(partialAdventure);
+
+  res.status(HTTP_STATUS.OK).json({ suggestions });
+}));
+
+/**
+ * @swagger
+ * /api/user-adventures:
+ *   get:
+ *     summary: Get user's custom adventures
+ *     tags: [Adventure]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's custom adventures
+ */
+router.get('/user-adventures', asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const result = await gameEngine.getUserCustomAdventures(req.user.id);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/adventure-templates:
+ *   get:
+ *     summary: Get public adventure templates
+ *     tags: [Adventure]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Maximum number of templates to return
+ *     responses:
+ *       200:
+ *         description: Public adventure templates
+ */
+router.get('/adventure-templates', asyncHandler(async (req: AuthRequest, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+  const result = await gameEngine.getPublicAdventureTemplates(limit);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/save-adventure-template:
+ *   post:
+ *     summary: Save adventure as public template
+ *     tags: [Adventure]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - adventure_id
+ *             properties:
+ *               adventure_id:
+ *                 type: string
+ *               is_public:
+ *                 type: boolean
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: Adventure saved as template
+ *       404:
+ *         description: Adventure not found
+ */
+router.post('/save-adventure-template', [
+  body('adventure_id')
+    .notEmpty()
+    .withMessage('Adventure ID is required'),
+  body('is_public')
+    .optional()
+    .isBoolean()
+    .withMessage('is_public must be a boolean')
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const { adventure_id, is_public = false } = req.body;
+  const result = await gameEngine.saveAdventureAsTemplate(adventure_id, req.user.id, is_public);
+
+  res.status(HTTP_STATUS.OK).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/create-from-template/{templateId}:
+ *   post:
+ *     summary: Create new game from adventure template
+ *     tags: [Adventure]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - style_preference
+ *               - image_style
+ *             properties:
+ *               style_preference:
+ *                 type: string
+ *                 enum: [detailed, concise]
+ *               image_style:
+ *                 type: string
+ *                 enum: [fantasy_art, comic_book, painterly]
+ *     responses:
+ *       201:
+ *         description: Game created from template
+ *       404:
+ *         description: Template not found
+ */
+router.post('/create-from-template/:templateId', [
+  param('templateId')
+    .notEmpty()
+    .withMessage('Template ID is required'),
+  body('style_preference')
+    .isIn(Object.values(STYLE_PREFERENCES))
+    .withMessage('Invalid style preference'),
+  body('image_style')
+    .isIn(Object.values(IMAGE_STYLES))
+    .withMessage('Invalid image style'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const templateId = req.params.templateId;
+  const gameRequest: NewGameRequest = {
+    genre: 'custom',
+    style_preference: req.body.style_preference,
+    image_style: req.body.image_style,
+    safety_filter: req.body.safety_filter,
+    content_rating: req.body.content_rating
+  };
+
+  const result = await gameEngine.createGameFromTemplate(templateId, gameRequest, req.user.id);
+
+  res.status(HTTP_STATUS.CREATED).json(result);
 }));
 
 export default router;

@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { GameSession as IGameSession, WorldState, SessionMetadata, GameSettings } from '../../../shared/types';
+import { GameSession as IGameSession, WorldState, SessionMetadata, GameSettings, CustomGameSession } from '../../../shared/types';
 
-export interface GameSessionDocument extends IGameSession, Document {
+export interface GameSessionDocument extends CustomGameSession, Document {
   _id: string;
 }
 
@@ -45,7 +45,7 @@ const SessionMetadataSchema = new Schema({
   genre: { 
     type: String, 
     required: true,
-    enum: ['fantasy', 'sci-fi', 'horror', 'modern'],
+    enum: ['fantasy', 'sci-fi', 'horror', 'modern', 'custom'],
     default: 'fantasy'
   },
   image_style: { 
@@ -66,6 +66,20 @@ const GameSettingsSchema = new Schema({
     default: 'normal'
   },
   safety_filter: { type: Boolean, default: false },
+}, { _id: false });
+
+const AdaptiveElementsSchema = new Schema({
+  discovered_locations: [{ type: String }],
+  met_npcs: [{ type: String }],
+  completed_objectives: [{ type: String }],
+  story_branches: [{ type: String }],
+  unlocked_plot_hooks: [{ type: String }],
+}, { _id: false });
+
+const CustomAdventureDataSchema = new Schema({
+  adventure_id: { type: String, required: true },
+  original_details: { type: Schema.Types.Mixed, required: true },
+  adaptive_elements: { type: AdaptiveElementsSchema, default: () => ({}) },
 }, { _id: false });
 
 const GameSessionSchema = new Schema({
@@ -96,6 +110,16 @@ const GameSessionSchema = new Schema({
     required: true,
     default: () => ({})
   },
+  adventure_type: {
+    type: String,
+    enum: ['preset', 'custom'],
+    default: 'preset',
+    index: true
+  },
+  custom_adventure: {
+    type: CustomAdventureDataSchema,
+    required: function(this: any) { return this.adventure_type === 'custom'; }
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -106,6 +130,8 @@ const GameSessionSchema = new Schema({
 GameSessionSchema.index({ user_id: 1, 'metadata.last_played': -1 });
 GameSessionSchema.index({ session_id: 1 });
 GameSessionSchema.index({ 'metadata.created_at': -1 });
+GameSessionSchema.index({ adventure_type: 1 });
+GameSessionSchema.index({ 'custom_adventure.adventure_id': 1 });
 
 // Virtual for latest turn
 GameSessionSchema.virtual('latestTurn').get(function() {
@@ -138,6 +164,37 @@ GameSessionSchema.methods.addTurn = function(turn: any) {
 GameSessionSchema.methods.updateWorldState = function(newState: Partial<WorldState>) {
   this.world_state = { ...this.world_state.toObject(), ...newState };
   this.markModified('world_state');
+  return this.save();
+};
+
+// Custom adventure methods
+GameSessionSchema.methods.addDiscoveredLocation = function(location: string) {
+  if (this.adventure_type === 'custom' && this.custom_adventure) {
+    if (!this.custom_adventure.adaptive_elements.discovered_locations.includes(location)) {
+      this.custom_adventure.adaptive_elements.discovered_locations.push(location);
+      this.markModified('custom_adventure.adaptive_elements.discovered_locations');
+    }
+  }
+  return this.save();
+};
+
+GameSessionSchema.methods.addMetNPC = function(npcName: string) {
+  if (this.adventure_type === 'custom' && this.custom_adventure) {
+    if (!this.custom_adventure.adaptive_elements.met_npcs.includes(npcName)) {
+      this.custom_adventure.adaptive_elements.met_npcs.push(npcName);
+      this.markModified('custom_adventure.adaptive_elements.met_npcs');
+    }
+  }
+  return this.save();
+};
+
+GameSessionSchema.methods.completeObjective = function(objective: string) {
+  if (this.adventure_type === 'custom' && this.custom_adventure) {
+    if (!this.custom_adventure.adaptive_elements.completed_objectives.includes(objective)) {
+      this.custom_adventure.adaptive_elements.completed_objectives.push(objective);
+      this.markModified('custom_adventure.adaptive_elements.completed_objectives');
+    }
+  }
   return this.save();
 };
 

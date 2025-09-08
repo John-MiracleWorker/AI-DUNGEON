@@ -11,9 +11,33 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
-import { useStartNewGameMutation } from '../services/gameApi';
+import { useStartNewGameMutation, useGetAdventureTemplatesQuery } from '../services/gameApi';
 import { setCurrentSession } from '../store/gameSlice';
-import { NewGameRequest } from '../types';
+import { NewGameRequest, GameCreationOptions } from '../types';
+
+const gameTypes = [
+  {
+    key: 'preset',
+    label: 'Quick Start',
+    icon: 'flash',
+    description: 'Choose from preset genres and jump right into adventure',
+    color: '#10b981'
+  },
+  {
+    key: 'custom',
+    label: 'Custom Adventure',
+    icon: 'construct',
+    description: 'Create your own unique adventure with custom world and characters',
+    color: '#6b46c1'
+  },
+  {
+    key: 'template',
+    label: 'Use Template',
+    icon: 'library',
+    description: 'Start from a community-created adventure template',
+    color: '#f59e0b'
+  }
+];
 
 const genres = [
   { key: 'fantasy', label: 'Fantasy', icon: 'flame', description: 'Magic, dragons, and medieval adventures' },
@@ -38,12 +62,32 @@ export const NewGameScreen: React.FC = () => {
   const dispatch = useAppDispatch();
   const settings = useAppSelector(state => state.settings);
   const [startNewGame, { isLoading }] = useStartNewGameMutation();
+  const { data: templatesData } = useGetAdventureTemplatesQuery({ limit: 10 });
 
+  const [gameType, setGameType] = useState<'preset' | 'custom' | 'template'>('preset');
   const [selectedGenre, setSelectedGenre] = useState<string>('fantasy');
   const [selectedImageStyle, setSelectedImageStyle] = useState<string>('fantasy_art');
   const [selectedStylePreference, setSelectedStylePreference] = useState<string>('detailed');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
   const handleStartGame = async () => {
+    if (gameType === 'custom') {
+      // Navigate to custom adventure creation wizard
+      (navigation as any).navigate('CustomAdventure');
+      return;
+    }
+
+    if (gameType === 'template') {
+      if (!selectedTemplate) {
+        Alert.alert('No Template Selected', 'Please select an adventure template to continue.');
+        return;
+      }
+      // Handle template-based game creation (to be implemented)
+      Alert.alert('Coming Soon', 'Template-based adventures will be available in the next update!');
+      return;
+    }
+
+    // Handle preset game creation
     try {
       const gameRequest: NewGameRequest = {
         genre: selectedGenre as any,
@@ -84,6 +128,157 @@ export const NewGameScreen: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to start new game:', error);
       Alert.alert('Error', error.data?.message || 'Failed to start new game');
+    }
+  };
+
+  const renderGameTypeSection = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Adventure Type</Text>
+      <Text style={styles.sectionDescription}>
+        Choose how you want to create your adventure
+      </Text>
+      {gameTypes.map((type) => (
+        <TouchableOpacity
+          key={type.key}
+          style={[
+            styles.gameTypeButton,
+            gameType === type.key && [styles.selectedGameType, { borderColor: type.color }],
+          ]}
+          onPress={() => setGameType(type.key as any)}
+        >
+          <View style={styles.gameTypeContent}>
+            <View style={styles.gameTypeHeader}>
+              <View style={[styles.gameTypeIcon, { backgroundColor: type.color }]}>
+                <Ionicons
+                  name={type.icon as any}
+                  size={24}
+                  color="#ffffff"
+                />
+              </View>
+              <View style={styles.gameTypeText}>
+                <Text style={[
+                  styles.gameTypeLabel,
+                  gameType === type.key && styles.selectedGameTypeText,
+                ]}>
+                  {type.label}
+                </Text>
+                <Text style={[
+                  styles.gameTypeDescription,
+                  gameType === type.key && styles.selectedGameTypeDescription,
+                ]}>
+                  {type.description}
+                </Text>
+              </View>
+              {gameType === type.key && (
+                <Ionicons name="checkmark-circle" size={24} color={type.color} />
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const renderTemplateSection = () => {
+    if (gameType !== 'template') return null;
+
+    const templates = templatesData?.templates || [];
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Select Template</Text>
+        <Text style={styles.sectionDescription}>
+          Choose from popular community-created adventures
+        </Text>
+        
+        {templates.length === 0 ? (
+          <View style={styles.emptyTemplates}>
+            <Ionicons name="library-outline" size={48} color="#6b7280" />
+            <Text style={styles.emptyTemplatesText}>No templates available</Text>
+          </View>
+        ) : (
+          <View style={styles.templatesList}>
+            {templates.map((template) => (
+              <TouchableOpacity
+                key={template.adventure_id}
+                style={[
+                  styles.templateCard,
+                  selectedTemplate === template.adventure_id && styles.selectedTemplate,
+                ]}
+                onPress={() => setSelectedTemplate(template.adventure_id)}
+              >
+                <View style={styles.templateHeader}>
+                  <Text style={styles.templateTitle}>{template.title}</Text>
+                  {selectedTemplate === template.adventure_id && (
+                    <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                  )}
+                </View>
+                <Text style={styles.templateDescription}>
+                  {template.description}
+                </Text>
+                <View style={styles.templateMeta}>
+                  <Text style={styles.templateMetaText}>
+                    {template.usage_count} plays • {template.estimated_duration}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderPresetOptions = () => {
+    if (gameType !== 'preset') return null;
+
+    return (
+      <>
+        {renderOptionSection(
+          'Genre',
+          genres,
+          selectedGenre,
+          setSelectedGenre
+        )}
+
+        {renderOptionSection(
+          'Image Style',
+          imageStyles,
+          selectedImageStyle,
+          setSelectedImageStyle
+        )}
+
+        {renderOptionSection(
+          'Narration Style',
+          stylePreferences,
+          selectedStylePreference,
+          setSelectedStylePreference
+        )}
+      </>
+    );
+  };
+
+  const getStartButtonText = () => {
+    if (isLoading) return 'Creating Adventure...';
+    
+    switch (gameType) {
+      case 'custom':
+        return 'Create Custom Adventure';
+      case 'template':
+        return 'Start from Template';
+      default:
+        return 'Start Adventure';
+    }
+  };
+
+  const getStartButtonIcon = () => {
+    switch (gameType) {
+      case 'custom':
+        return 'construct';
+      case 'template':
+        return 'library';
+      default:
+        return 'play';
     }
   };
 
@@ -148,35 +343,18 @@ export const NewGameScreen: React.FC = () => {
           </Text>
         </View>
 
-        {renderOptionSection(
-          'Genre',
-          genres,
-          selectedGenre,
-          setSelectedGenre
-        )}
-
-        {renderOptionSection(
-          'Image Style',
-          imageStyles,
-          selectedImageStyle,
-          setSelectedImageStyle
-        )}
-
-        {renderOptionSection(
-          'Narration Style',
-          stylePreferences,
-          selectedStylePreference,
-          setSelectedStylePreference
-        )}
+        {renderGameTypeSection()}
+        {renderTemplateSection()}
+        {renderPresetOptions()}
 
         <TouchableOpacity
           style={[styles.startButton, isLoading && styles.startButtonDisabled]}
           onPress={handleStartGame}
           disabled={isLoading}
         >
-          <Ionicons name="play" size={24} color="#ffffff" />
+          <Ionicons name={getStartButtonIcon()} size={24} color="#ffffff" />
           <Text style={styles.startButtonText}>
-            {isLoading ? 'Creating Adventure...' : 'Start Adventure'}
+            {getStartButtonText()}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -221,6 +399,106 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#f3f4f6',
     marginBottom: 12,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  gameTypeButton: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#404040',
+  },
+  selectedGameType: {
+    backgroundColor: '#1f2937',
+    borderWidth: 2,
+  },
+  gameTypeContent: {
+    flex: 1,
+  },
+  gameTypeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  gameTypeIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  gameTypeText: {
+    flex: 1,
+  },
+  gameTypeLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#f3f4f6',
+    marginBottom: 4,
+  },
+  gameTypeDescription: {
+    fontSize: 14,
+    color: '#9ca3af',
+    lineHeight: 20,
+  },
+  selectedGameTypeText: {
+    color: '#ffffff',
+  },
+  selectedGameTypeDescription: {
+    color: '#e5e7eb',
+  },
+  templatesList: {
+    gap: 12,
+  },
+  templateCard: {
+    backgroundColor: '#2a2a2a',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#404040',
+  },
+  selectedTemplate: {
+    backgroundColor: '#1f2937',
+    borderColor: '#10b981',
+  },
+  templateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  templateTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f3f4f6',
+  },
+  templateDescription: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  templateMeta: {
+    marginTop: 4,
+  },
+  templateMetaText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  emptyTemplates: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyTemplatesText: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginTop: 12,
   },
   optionButton: {
     backgroundColor: '#2a2a2a',

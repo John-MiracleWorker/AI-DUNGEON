@@ -58,7 +58,7 @@ export interface ProcessingMetadata {
 }
 
 export interface NewGameRequest {
-  genre: 'fantasy' | 'sci-fi' | 'horror' | 'modern';
+  genre: 'fantasy' | 'sci-fi' | 'horror' | 'modern' | 'custom';
   style_preference: 'detailed' | 'concise';
   image_style: 'fantasy_art' | 'comic_book' | 'painterly';
   safety_filter?: boolean;
@@ -148,5 +148,155 @@ export interface StyleConfig {
   painterly: {
     prefix: string;
     suffix: string;
+  };
+}
+
+// Custom Adventure Types
+export interface CustomAdventureRequest extends NewGameRequest {
+  adventure_details: AdventureDetails;
+}
+
+export interface AdventureDetails {
+  title: string;
+  description: string;
+  setting: AdventureSetting;
+  characters: AdventureCharacters;
+  plot: AdventurePlot;
+  style_preferences: StylePreferences;
+}
+
+export interface AdventureSetting {
+  world_description: string;
+  time_period: string;
+  environment: string;
+  special_rules?: string;
+  locations?: string[];
+}
+
+export interface AdventureCharacters {
+  player_role: string;
+  key_npcs: AdventureNPC[];
+  relationships?: Relationship[];
+}
+
+export interface AdventureNPC {
+  name: string;
+  description: string;
+  relationship: string;
+  personality?: string;
+  goals?: string;
+}
+
+export interface Relationship {
+  character1: string;
+  character2: string;
+  type: string;
+  description: string;
+}
+
+export interface AdventurePlot {
+  main_objective: string;
+  secondary_goals: string[];
+  plot_hooks: string[];
+  victory_conditions: string;
+  estimated_turns?: number;
+  themes?: string[];
+}
+
+export interface StylePreferences {
+  tone: 'serious' | 'humorous' | 'dramatic' | 'mixed';
+  complexity: 'simple' | 'moderate' | 'complex';
+  pacing: 'slow' | 'moderate' | 'fast';
+}
+
+export interface CustomAdventure {
+  adventure_id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  setting: AdventureSetting;
+  characters: AdventureCharacters;
+  plot: AdventurePlot;
+  style_preferences: StylePreferences;
+  created_at: Date;
+  is_template: boolean;
+  usage_count: number;
+  is_public?: boolean;
+  tags?: string[];
+}
+
+export interface CustomGameSession extends GameSession {
+  adventure_type: 'preset' | 'custom';
+  custom_adventure?: {
+    adventure_id: string;
+    original_details: AdventureDetails;
+    adaptive_elements: {
+      discovered_locations: string[];
+      met_npcs: string[];
+      completed_objectives: string[];
+      story_branches: string[];
+      unlocked_plot_hooks: string[];
+    };
+  };
+}
+
+export interface CustomAdventureResponse {
+  adventure_id: string;
+  session_id: string;
+  prologue: {
+    narration: string;
+    image_url: string;
+    quick_actions: string[];
+  };
+  world_state: WorldState;
+}
+
+export interface AdventureTemplate {
+  template_id: string;
+  title: string;
+  description: string;
+  author: string;
+  category: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimated_duration: string;
+  rating: number;
+  usage_count: number;
+  adventure_details: AdventureDetails;
+  created_at: Date;
+  updated_at: Date;
+  tags: string[];
+}
+
+export interface AdventureValidationResult {
+  isValid: boolean;
+  errors: ValidationError[];
+  warnings?: string[];
+  suggestions?: string[];
+}
+
+export interface ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+export interface AdventureSuggestion {
+  category: 'setting' | 'character' | 'plot' | 'style';
+  field: string;
+  suggestions: string[];
+  reasoning?: string;
+}
+
+export interface CustomPromptContext {
+  adventure_details: AdventureDetails;
+  world_state: WorldState;
+  recent_history: Turn[];
+  player_input: string;
+  session_id: string;
+  adaptive_elements?: {
+    discovered_locations: string[];
+    met_npcs: string[];
+    completed_objectives: string[];
+    story_branches: string[];
   };
 }
