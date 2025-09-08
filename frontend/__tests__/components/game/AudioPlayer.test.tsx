@@ -33,6 +33,13 @@ jest.mock('expo-av', () => ({
 
 const mockStore = configureStore([]);
 
+const mockGenerateSpeech = jest.fn();
+
+jest.mock('../../../src/services/gameApi', () => ({
+  ...jest.requireActual('../../../src/services/gameApi'),
+  useGenerateSpeechMutation: () => [mockGenerateSpeech, { isLoading: false }],
+}));
+
 describe('AudioPlayer', () => {
   let store: any;
   
@@ -44,14 +51,11 @@ describe('AudioPlayer', () => {
         playbackSpeed: 1.0,
       },
     });
-    
-    // Mock global fetch
-    global.fetch = jest.fn(() =>
-      Promise.resolve({
-        ok: true,
-        blob: () => Promise.resolve(new Blob(['audio data'], { type: 'audio/mpeg' })),
-      } as any)
-    );
+
+    mockGenerateSpeech.mockClear();
+    mockGenerateSpeech.mockReturnValue({
+      unwrap: () => Promise.resolve(new Blob(['audio data'], { type: 'audio/mpeg' })),
+    });
   });
 
   afterEach(() => {
@@ -93,14 +97,6 @@ describe('AudioPlayer', () => {
   });
 
   it('calls generateSpeech when component mounts', async () => {
-    const mockGenerateSpeech = jest.fn();
-    
-    // Mock the useGenerateSpeechMutation hook
-    jest.mock('../../../src/services/gameApi', () => ({
-      ...jest.requireActual('../../../src/services/gameApi'),
-      useGenerateSpeechMutation: () => [mockGenerateSpeech, { isLoading: false }],
-    }));
-
     render(
       <Provider store={store}>
         <AudioPlayer
@@ -112,7 +108,7 @@ describe('AudioPlayer', () => {
 
     // Wait for async operations
     await new Promise(resolve => setTimeout(resolve, 0));
-    
+
     expect(mockGenerateSpeech).toHaveBeenCalledWith({
       sessionId: 'test-session',
       body: {
