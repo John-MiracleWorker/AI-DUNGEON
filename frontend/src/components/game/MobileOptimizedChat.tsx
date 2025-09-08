@@ -37,7 +37,9 @@ const TurnDisplay: React.FC<TurnDisplayProps> = ({
   onTextLongPress,
   enableHaptics = true,
 }) => {
-  
+  const [imageError, setImageError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   const handleImagePress = async () => {
     if (enableHaptics) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -56,6 +58,11 @@ const TurnDisplay: React.FC<TurnDisplayProps> = ({
     }
   };
 
+  const handleRetry = () => {
+    setImageError(false);
+    setReloadKey((k) => k + 1);
+  };
+
   return (
     <View style={styles.turnContainer}>
       {/* Player Input */}
@@ -70,16 +77,29 @@ const TurnDisplay: React.FC<TurnDisplayProps> = ({
       {/* AI Response */}
       <View style={styles.aiResponseContainer}>
         {/* Image */}
-        {turn.image_url && (
+        {!turn.image_url || imageError ? (
+          <View style={styles.placeholderContainer} testID="image-placeholder">
+            <Text style={styles.placeholderText}>
+              {imageError ? 'Failed to load image.' : 'No image available.'}
+            </Text>
+            {imageError && (
+              <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
           <TouchableOpacity
             style={styles.imageContainer}
             onPress={handleImagePress}
             activeOpacity={0.8}
           >
             <Image
+              key={reloadKey}
               source={{ uri: turn.image_url }}
               style={styles.turnImage}
               resizeMode="cover"
+              onError={() => setImageError(true)}
             />
             <View style={styles.imageOverlay}>
               <Ionicons name="expand" size={20} color="white" />
@@ -274,6 +294,31 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     height: (width * 0.8) * 0.6,
     borderRadius: 12,
+  },
+  placeholderContainer: {
+    width: width * 0.8,
+    height: (width * 0.8) * 0.6,
+    backgroundColor: '#404040',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  placeholderText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: '#6b46c1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 12,
   },
   imageOverlay: {
     position: 'absolute',

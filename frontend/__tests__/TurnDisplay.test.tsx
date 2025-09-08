@@ -84,11 +84,10 @@ describe('TurnDisplay Component', () => {
     expect(true).toBeTruthy();
   });
 
-  it('renders without image when image_url is empty', () => {
+  it('shows placeholder when image_url is empty', () => {
     const turnWithoutImage = { ...mockTurn, image_url: '' };
-    const { queryByTestId } = render(<TurnDisplay turn={turnWithoutImage} />);
-    
-    // Should render without throwing error
-    expect(true).toBeTruthy();
+    const { getByTestId } = render(<TurnDisplay turn={turnWithoutImage} />);
+
+    expect(getByTestId('image-placeholder')).toBeTruthy();
   });
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Turn } from '../../types';
 
@@ -10,11 +10,52 @@ interface TurnDisplayProps {
 
 const { width } = Dimensions.get('window');
 
-export const TurnDisplay: React.FC<TurnDisplayProps> = ({ 
-  turn, 
-  onImagePress, 
-  isLatest = false 
+export const TurnDisplay: React.FC<TurnDisplayProps> = ({
+  turn,
+  onImagePress,
+  isLatest = false
 }) => {
+  const [imageError, setImageError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const handleRetry = () => {
+    setImageError(false);
+    setReloadKey((k) => k + 1);
+  };
+
+  const renderImage = () => {
+    if (!turn.image_url || imageError) {
+      return (
+        <View style={styles.placeholderContainer} testID="image-placeholder">
+          <Text style={styles.placeholderText}>
+            {imageError ? 'Failed to load image.' : 'No image available.'}
+          </Text>
+          {imageError && (
+            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    return (
+      <TouchableOpacity
+        style={styles.imageContainer}
+        onPress={onImagePress}
+        activeOpacity={0.8}
+      >
+        <Image
+          key={reloadKey}
+          source={{ uri: turn.image_url }}
+          style={styles.image}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={[styles.container, isLatest && styles.latestTurn]}>
       {/* Player Input */}
@@ -31,19 +72,7 @@ export const TurnDisplay: React.FC<TurnDisplayProps> = ({
       </View>
       
       {/* Image */}
-      {turn.image_url && (
-        <TouchableOpacity 
-          style={styles.imageContainer} 
-          onPress={onImagePress}
-          activeOpacity={0.8}
-        >
-          <Image 
-            source={{ uri: turn.image_url }} 
-            style={styles.image}
-            resizeMode="cover"
-          />
-        </TouchableOpacity>
-      )}
+      {renderImage()}
       
       {/* Quick Actions */}
       {turn.quick_actions && turn.quick_actions.length > 0 && (
@@ -121,6 +150,30 @@ const styles = StyleSheet.create({
     width: width - 64,
     height: (width - 64) * 0.75,
     backgroundColor: '#404040',
+  },
+  placeholderContainer: {
+    width: width - 64,
+    height: (width - 64) * 0.75,
+    backgroundColor: '#404040',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  placeholderText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  retryButton: {
+    backgroundColor: '#6b46c1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 4,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 12,
   },
   quickActionsContainer: {
     backgroundColor: '#1a1a1a',
