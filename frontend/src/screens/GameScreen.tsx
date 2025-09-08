@@ -28,6 +28,7 @@ import { setLoading, setError } from '../store/uiSlice';
 import { updateAudioSettings } from '../store/settingsSlice';
 import { ChatContainer, InputBox, GameControls } from '../components/game';
 import AudioPlayer from '../components/game/AudioPlayer';
+import SaveGameModal from '../components/SaveGameModal';
 
 export const GameScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -42,6 +43,7 @@ export const GameScreen: React.FC = () => {
   const [saveGame, { isLoading: isSaving }] = useSaveGameMutation();
 
   const [isReady, setIsReady] = useState(false);
+  const [isSaveModalVisible, setSaveModalVisible] = useState(false);
   
   // Get session ID from route params
   const sessionId = (route.params as any)?.sessionId || currentSession?.session_id;
@@ -140,40 +142,32 @@ export const GameScreen: React.FC = () => {
     }
   };
 
-  const handleSaveGame = async () => {
+  const openSaveGameModal = () => {
     if (!currentSession) {
       Alert.alert('Error', 'No active game session to save');
       return;
     }
+    setSaveModalVisible(true);
+  };
 
-    Alert.prompt(
-      'Save Game',
-      'Enter a name for your save:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Save',
-          onPress: async (saveName) => {
-            if (!saveName || saveName.trim().length === 0) {
-              Alert.alert('Error', 'Please enter a valid save name');
-              return;
-            }
+  const handleSaveGame = async (saveName: string): Promise<boolean> => {
+    if (!currentSession) {
+      Alert.alert('Error', 'No active game session to save');
+      return false;
+    }
 
-            try {
-              await saveGame({
-                session_id: currentSession.session_id,
-                save_name: saveName.trim()
-              }).unwrap();
+    try {
+      await saveGame({
+        session_id: currentSession.session_id,
+        save_name: saveName.trim()
+      }).unwrap();
 
-              Alert.alert('Success', 'Game saved successfully!');
-            } catch (error: any) {
-              Alert.alert('Error', error.data?.message || 'Failed to save game');
-            }
-          }
-        }
-      ],
-      'plain-text'
-    );
+      Alert.alert('Success', 'Game saved successfully!');
+      return true;
+    } catch (error: any) {
+      Alert.alert('Error', error.data?.message || 'Failed to save game');
+      return false;
+    }
   };
 
   const handleLoadGame = () => {
@@ -231,13 +225,20 @@ export const GameScreen: React.FC = () => {
         />
         
         <GameControls
-          onSaveGame={handleSaveGame}
+          onSaveGame={openSaveGameModal}
           onLoadGame={handleLoadGame}
           onNewGame={handleNewGame}
           onSettings={handleSettings}
           isLoading={isSaving}
           currentLocation={currentSession.world_state.location}
           turnCount={currentSession.turn_history.length}
+        />
+
+        <SaveGameModal
+          visible={isSaveModalVisible}
+          onClose={() => setSaveModalVisible(false)}
+          onSave={handleSaveGame}
+          isSaving={isSaving}
         />
         
         {/* Audio Toggle Button */}
