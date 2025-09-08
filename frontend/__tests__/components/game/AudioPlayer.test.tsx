@@ -2,7 +2,7 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import { Provider } from 'react-redux';
 import configureStore from 'redux-mock-store';
-import AudioPlayer from '../../../src/components/game/AudioPlayer';
+import AudioPlayer, { formatTime } from '../../../src/components/game/AudioPlayer';
 
 // Mock expo-av
 jest.mock('expo-av', () => ({
@@ -120,5 +120,15 @@ describe('AudioPlayer', () => {
         quality: 'standard',
       }
     });
+  });
+});
+
+describe('formatTime', () => {
+  it('formats durations below one minute', () => {
+    expect(formatTime(5)).toBe('0:05');
+  });
+
+  it('formats durations above one minute', () => {
+    expect(formatTime(65)).toBe('1:05');
   });
 });
