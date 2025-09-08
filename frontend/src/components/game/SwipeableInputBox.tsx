@@ -10,6 +10,7 @@ import {
   Animated,
   PanResponder,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -97,14 +98,14 @@ export const SwipeableInputBox: React.FC<SwipeableInputBoxProps> = ({
       Animated.parallel([
         Animated.spring(translateX, {
           toValue: 0,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
           tension: 100,
           friction: 8,
         }),
         Animated.timing(swipeOpacity, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }),
       ]).start();
       
