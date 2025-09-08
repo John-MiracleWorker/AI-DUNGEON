@@ -1,28 +1,18 @@
 {
-  "name": "dungeon-ai-adventure",
+  "name": "ai-dungeon-launcher",
   "version": "1.0.0",
-  "description": "AI-powered text adventure game with image generation",
-  "main": "index.js",
+  "description": "AI Dungeon Game Launcher Scripts",
   "scripts": {
-    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
-    "server:dev": "cd backend && npm run dev",
-    "client:dev": "cd frontend && npm start",
-    "build": "cd frontend && npm run build",
-    "test": "npm run test:backend && npm run test:frontend",
-    "test:backend": "cd backend && npm test",
-    "test:frontend": "cd frontend && npm test",
-    "start": "cd backend && npm start"
+    "start": "./launch-game.sh",
+    "quick": "./quick-launch.sh",
+    "dev": "./launch-game.sh",
+    "backend": "./launch-game.sh --backend-only",
+    "frontend": "./launch-game.sh --frontend-only",
+    "setup": "cd backend && npm install --legacy-peer-deps && cd ../frontend && npm install --legacy-peer-deps",
+    "clean": "lsof -ti:3001 | xargs kill -9 2>/dev/null || true; lsof -ti:8082 | xargs kill -9 2>/dev/null || true; docker-compose -f docker-compose.dev.yml down",
+    "logs": "cd backend && tail -f backend.log",
+    "help": "./launch-game.sh --help"
   },
-  "keywords": [
-    "ai",
-    "adventure",
-    "game",
-    "openai",
-    "react-native"
-  ],
-  "author": "AI Dungeon Team",
-  "license": "MIT",
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+  "author": "Trent Iuni <tiuni65@gmail.com>",
+  "license": "MIT"
 }
