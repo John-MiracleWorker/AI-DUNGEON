@@ -13,7 +13,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "@expo/cli": "^0.24.21",
+    "@expo/cli": "0.20.x",
     "@expo/metro-runtime": "~5.0.4",
     "@expo/vector-icons": "^14.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
@@ -26,7 +26,7 @@
     "@reduxjs/toolkit": "^2.9.0",
     "axios": "^1.11.0",
     "eas-cli": "^16.18.0",
-    "expo": "~53.0.22",
+    "expo": "52.x",
     "expo-av": "^15.1.7",
     "expo-font": "^13.3.2",
     "expo-haptics": "^14.1.4",
@@ -36,9 +36,9 @@
     "expo-secure-store": "~14.2.4",
     "expo-splash-screen": "^0.30.10",
     "expo-status-bar": "~2.2.3",
-    "react": "19.0.0",
-    "react-dom": "^19.0.0",
-    "react-native": "0.79.5",
+    "react": "18.x",
+    "react-dom": "18.x",
+    "react-native": "0.76.x",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
@@ -51,9 +51,10 @@
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
-    "@types/react": "~19.0.10",
+    "@types/react": "18.x",
     "jest": "^29.7.0",
-    "jest-expo": "~53.0.10",
+    "jest-expo": "52.x",
+    "react-test-renderer": "18.x",
     "typescript": "~5.8.3"
   },
   "private": true
