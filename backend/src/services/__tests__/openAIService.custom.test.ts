@@ -10,15 +10,19 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'A magical underground adventure seeking ancient crystals',
         setting: {
           world_description: 'A vast underground network of crystal-filled caverns with glowing formations and hidden dangers',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Underground crystal caverns with luminescent formations and narrow passages'
         },
         characters: {
           player_role: 'A crystal miner seeking rare gems for the kingdom',
           key_npcs: [{
+            id: 'npc_1',
             name: 'Gemma the Guide',
             description: 'An experienced cave explorer who knows secret passages',
-            relationship: 'mentor'
+            relationship: 'mentor',
+            traits: ['knowledgeable', 'reliable'],
+            importance: 'major',
+            relationships: []
           }]
         },
         plot: {
@@ -38,7 +42,7 @@ describe('OpenAI Service - Custom Adventures', () => {
       // For now, we'll test the prompt structure
       const promptContext = {
         adventure_details: mockAdventure,
-        world_state: {},
+        world_state: {} as any,
         recent_history: [],
         player_input: 'START',
         session_id: 'test_session'
@@ -60,7 +64,7 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'A dire quest to save humanity',
         setting: {
           world_description: 'A post-apocalyptic wasteland',
-          time_period: 'post_apocalyptic',
+          time_period: { type: 'predefined', value: 'post_apocalyptic' },
           environment: 'Desolate ruins and radioactive zones'
         },
         characters: {
@@ -82,6 +86,10 @@ describe('OpenAI Service - Custom Adventures', () => {
 
       const humorousTone: AdventureDetails = {
         ...seriousTone,
+        setting: {
+          ...seriousTone.setting,
+          time_period: { type: 'predefined', value: 'modern' }
+        },
         style_preferences: {
           tone: 'humorous',
           complexity: 'simple',
@@ -103,7 +111,7 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'Underground adventure',
         setting: {
           world_description: 'Crystal caverns with magical properties',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Glowing crystal formations'
         },
         characters: {
@@ -125,7 +133,7 @@ describe('OpenAI Service - Custom Adventures', () => {
 
       // Test the components that would be used for enhancement
       expect(adventureDetails.setting.environment).toContain('crystal');
-      expect(adventureDetails.setting.time_period).toBe('medieval');
+      expect((adventureDetails.setting.time_period as any).value).toBe('medieval');
       expect(adventureDetails.style_preferences.tone).toBe('dramatic');
       
       // Verify enhancement logic components are available
@@ -139,7 +147,7 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'City adventure',
         setting: {
           world_description: 'Modern cityscape',
-          time_period: 'modern',
+          time_period: { type: 'predefined', value: 'modern' },
           environment: 'Urban environment'
         },
         characters: {
@@ -160,9 +168,9 @@ describe('OpenAI Service - Custom Adventures', () => {
       };
 
       // Test that time period and setting would influence enhancement
-      expect(modernAdventure.setting.time_period).toBe('modern');
+      expect((modernAdventure.setting.time_period as any).value).toBe('modern');
       expect(modernAdventure.setting.environment.toLowerCase()).toContain('urban');
-      expect(modernAdventure.setting.time_period).not.toBe('medieval');
+      expect((modernAdventure.setting.time_period as any).value).not.toBe('medieval');
     });
   });
 
@@ -173,7 +181,7 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'Basic adventure',
         setting: {
           world_description: 'Simple forest',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Forest path'
         },
         characters: {
@@ -195,6 +203,10 @@ describe('OpenAI Service - Custom Adventures', () => {
 
       const complexAdventure: AdventureDetails = {
         ...simpleAdventure,
+        setting: {
+          ...simpleAdventure.setting,
+          time_period: { type: 'predefined', value: 'medieval' }
+        },
         style_preferences: {
           tone: 'dramatic',
           complexity: 'complex',
@@ -220,15 +232,19 @@ describe('OpenAI Service - Custom Adventures', () => {
         description: 'Test description for validation',
         setting: {
           world_description: 'Test world with specific characteristics for prompt generation',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Test environment'
         },
         characters: {
           player_role: 'Test character role',
           key_npcs: [{
+            id: 'npc_1',
             name: 'Test NPC',
             description: 'Test NPC description',
-            relationship: 'ally'
+            relationship: 'ally',
+            traits: ['test'],
+            importance: 'minor',
+            relationships: []
           }]
         },
         plot: {

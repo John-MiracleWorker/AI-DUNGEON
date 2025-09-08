@@ -1,4 +1,4 @@
-import axios from 'axios';
+import OpenAI from 'openai';
 import { logger } from '../utils/logger';
 import { CustomError } from '../middleware/errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../../../shared/constants';
@@ -38,17 +38,20 @@ export interface GameContext {
 }
 
 class OpenAIService {
-  private apiKey: string;
-  private baseURL = 'https://api.openai.com/v1';
+  private openai: OpenAI;
   private styleConfig: StyleConfig;
 
   constructor() {
-    this.apiKey = process.env.OPENAI_API_KEY || '';
-    if (!this.apiKey) {
+    const apiKey = process.env.OPENAI_API_KEY || '';
+    if (!apiKey) {
       logger.error('OpenAI API key not configured - please set OPENAI_API_KEY environment variable');
     } else {
       logger.info('OpenAI API key configured successfully');
     }
+
+    this.openai = new OpenAI({
+      apiKey: apiKey
+    });
 
     this.styleConfig = {
       fantasy_art: {
@@ -67,7 +70,7 @@ class OpenAIService {
   }
 
   async generateNarration(context: GameContext): Promise<NarrationResponse> {
-    if (!this.apiKey) {
+    if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
 
@@ -90,27 +93,17 @@ class OpenAIService {
         { role: 'user', content: userPrompt }
       ];
 
-      const response = await axios.post(
-        `${this.baseURL}/chat/completions`,
-        {
-          model: 'gpt-4',
-          messages,
-          temperature: 0.8,
-          max_tokens: 800,
-          top_p: 0.9,
-          frequency_penalty: 0.3,
-          presence_penalty: 0.3,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-        }
-      );
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: messages as any,
+        temperature: 0.8,
+        max_tokens: 800,
+        top_p: 0.9,
+        frequency_penalty: 0.3,
+        presence_penalty: 0.3,
+      });
 
-      const aiResponse = response.data.choices[0]?.message?.content;
+      const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
         throw new Error('No response from OpenAI');
       }
@@ -160,11 +153,11 @@ class OpenAIService {
       const processingTime = Date.now() - startTime;
       logger.error(`AI narration failed after ${processingTime}ms:`, error);
 
-      if (error.response?.status === 429) {
+      if (error.status === 429) {
         throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
       }
 
-      if (error.response?.status === 401) {
+      if (error.status === 401) {
         throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
@@ -176,7 +169,7 @@ class OpenAIService {
    * Generate custom adventure prologue
    */
   async generateCustomPrologue(adventureDetails: AdventureDetails): Promise<NarrationResponse> {
-    if (!this.apiKey) {
+    if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
 
@@ -191,27 +184,17 @@ class OpenAIService {
         { role: 'user', content: prologuePrompt }
       ];
 
-      const response = await axios.post(
-        `${this.baseURL}/chat/completions`,
-        {
-          model: 'gpt-4',
-          messages,
-          temperature: 0.9,
-          max_tokens: 1000,
-          top_p: 0.95,
-          frequency_penalty: 0.2,
-          presence_penalty: 0.4,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 45000,
-        }
-      );
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages: messages as any,
+        temperature: 0.9,
+        max_tokens: 1000,
+        top_p: 0.95,
+        frequency_penalty: 0.2,
+        presence_penalty: 0.4,
+      });
 
-      const aiResponse = response.data.choices[0]?.message?.content;
+      const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
         throw new Error('No prologue response from OpenAI');
       }
@@ -248,11 +231,11 @@ class OpenAIService {
       const processingTime = Date.now() - startTime;
       logger.error(`Custom prologue generation failed after ${processingTime}ms:`, error);
 
-      if (error.response?.status === 429) {
+      if (error.status === 429) {
         throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
       }
 
-      if (error.response?.status === 401) {
+      if (error.status === 401) {
         throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
@@ -261,7 +244,7 @@ class OpenAIService {
   }
 
   async generateImage(prompt: string, style: string, adventureDetails?: AdventureDetails, config?: ImageGenerationConfig): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
 
@@ -279,26 +262,24 @@ class OpenAIService {
         enhancementLevel: 'detailed'
       };
 
-      const response = await axios.post(
-        `${this.baseURL}/images/generations`,
-        {
-          model: imageConfig.model,
-          prompt: enhancedPrompt,
-          size: imageConfig.size,
-          quality: imageConfig.quality,
-          style: imageConfig.style,
-          n: 1,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 60000, // Image generation takes longer
-        }
-      );
+      // Validate the prompt before sending to OpenAI
+      const validation = this.validateImagePrompt(enhancedPrompt);
+      if (!validation.isValid) {
+        logger.warn('Image prompt validation failed:', validation.errors);
+        throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
+      }
 
-      const imageUrl = response.data.data[0]?.url;
+      const response = await this.openai.images.generate({
+        model: imageConfig.model,
+        prompt: enhancedPrompt,
+        n: 1,
+        size: imageConfig.size as any,
+        quality: imageConfig.quality,
+        style: imageConfig.style,
+        response_format: 'url'
+      });
+
+      const imageUrl = response.data?.[0]?.url;
       if (!imageUrl) {
         throw new Error('No image URL returned from OpenAI');
       }
@@ -346,31 +327,67 @@ class OpenAIService {
   private async generateImageWithModel(prompt: string, style: string, adventureDetails: AdventureDetails | undefined, config: ImageGenerationConfig): Promise<string> {
     const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
     
-    const response = await axios.post(
-      `${this.baseURL}/images/generations`,
-      {
-        model: config.model,
-        prompt: enhancedPrompt,
-        size: config.size,
-        quality: config.quality,
-        style: config.style,
-        n: 1,
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 60000,
-      }
-    );
+    // Validate the prompt before sending to OpenAI
+    const validation = this.validateImagePrompt(enhancedPrompt);
+    if (!validation.isValid) {
+      logger.warn('Image prompt validation failed:', validation.errors);
+      throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
+    }
+    
+    const response = await this.openai.images.generate({
+      model: config.model,
+      prompt: enhancedPrompt,
+      n: 1,
+      size: config.size as any,
+      quality: config.quality,
+      style: config.style,
+      response_format: 'url'
+    });
 
-    const imageUrl = response.data.data[0]?.url;
+    const imageUrl = response.data?.[0]?.url;
     if (!imageUrl) {
       throw new Error(`No image URL returned from ${config.model}`);
     }
 
     return imageUrl;
+  }
+
+  /**
+   * Validate image prompt to prevent rejections by OpenAI
+   */
+  private validateImagePrompt(prompt: string): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    // Length validation
+    if (prompt.length > 4000) {
+      errors.push('Prompt exceeds maximum length of 4000 characters');
+    }
+    
+    // Content validation for inappropriate patterns
+    const inappropriatePatterns = [
+      /violence/gi,
+      /blood/gi,
+      /gore/gi,
+      /explicit/gi,
+      /nudity/gi,
+      /sexual/gi
+    ];
+    
+    for (const pattern of inappropriatePatterns) {
+      if (prompt.match(pattern)) {
+        errors.push(`Prompt contains potentially inappropriate content: ${pattern}`);
+      }
+    }
+    
+    // Check for special characters that might cause issues
+    if (prompt.includes('```') || prompt.includes('"""')) {
+      errors.push('Prompt contains invalid formatting characters');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   }
 
   /**
@@ -381,7 +398,7 @@ class OpenAIService {
     config: ImageGenerationConfig,
     adventureContext?: AdventureDetails
   ): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.openai.apiKey) {
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
 
@@ -390,26 +407,24 @@ class OpenAIService {
     try {
       const enhancedPrompt = this.buildContextualPrompt(prompt, adventureContext);
       
-      const response = await axios.post(
-        `${this.baseURL}/images/generations`,
-        {
-          model: config.model,
-          prompt: enhancedPrompt,
-          size: config.size,
-          quality: config.quality,
-          style: config.style,
-          n: 1,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 60000,
-        }
-      );
+      // Validate the prompt before sending to OpenAI
+      const validation = this.validateImagePrompt(enhancedPrompt);
+      if (!validation.isValid) {
+        logger.warn('Enhanced image prompt validation failed:', validation.errors);
+        throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
+      }
+      
+      const response = await this.openai.images.generate({
+        model: config.model,
+        prompt: enhancedPrompt,
+        n: 1,
+        size: config.size as any,
+        quality: config.quality,
+        style: config.style,
+        response_format: 'url'
+      });
 
-      const imageUrl = response.data.data[0]?.url;
+      const imageUrl = response.data?.[0]?.url;
       if (!imageUrl) {
         throw new Error(`No image URL returned from ${config.model}`);
       }
@@ -483,24 +498,16 @@ class OpenAIService {
   }
 
   async moderateContent(text: string): Promise<boolean> {
-    if (!this.apiKey) {
+    if (!this.openai.apiKey) {
       return true; // Allow content if moderation is unavailable
     }
 
     try {
-      const response = await axios.post(
-        `${this.baseURL}/moderations`,
-        { input: text },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
+      const response = await this.openai.moderations.create({
+        input: text,
+      });
 
-      const result = response.data.results[0];
+      const result = response.results[0];
       return !result.flagged;
 
     } catch (error) {
