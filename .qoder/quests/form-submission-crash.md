@@ -356,42 +356,64 @@ const handleCreateAdventure = async () => {
 };
 ```
 
-#### 3. Improve Error Handling in Backend
+#### 3. Add Validation Before Submission
 
-In the backend `gameEngine.ts`, ensure proper error handling:
+Add a validation step before attempting to create the adventure:
 
 ```typescript
-async createCustomGame(request: CustomAdventureRequest, userId: string): Promise<CustomAdventureResponse> {
-  const startTime = Date.now();
-  
-  try {
-    // Validate the custom adventure request
-    const validation = CustomAdventureValidator.validateCustomAdventureRequest(request);
-    if (!validation.isValid) {
-      throw new CustomError(
-        `Validation failed: ${validation.errors.map(e => e.message).join(', ')}`, 
-        HTTP_STATUS.BAD_REQUEST
-      );
-    }
-
-    // Sanitize adventure content
-    const sanitizedDetails = CustomAdventureValidator.sanitizeAdventureContent(request.adventure_details);
-    
-    // Ensure all required fields are present
-    if (!sanitizedDetails.title || !sanitizedDetails.description) {
-      throw new CustomError('Missing required adventure details', HTTP_STATUS.BAD_REQUEST);
-    }
-    
-    // Continue with creation...
-    // [rest of the function]
-  } catch (error) {
-    logger.error('Failed to create custom adventure:', error);
-    if (error instanceof CustomError) {
-      throw error;
-    }
-    throw new CustomError('Failed to create custom adventure', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+const handleCreateAdventure = async () => {
+  if (!currentAdventure) {
+    Alert.alert('Error', 'Adventure details are missing');
+    return;
   }
-}
+
+  // Validate all required fields before submission
+  const validationErrors = [];
+  
+  // Basic Info validation
+  if (!currentAdventure.title?.trim() || currentAdventure.title.trim().length < 3) {
+    validationErrors.push('Title must be at least 3 characters');
+  }
+  
+  if (!currentAdventure.description?.trim() || currentAdventure.description.trim().length < 10) {
+    validationErrors.push('Description must be at least 10 characters');
+  }
+  
+  // Setting validation
+  if (!currentAdventure.setting?.world_description?.trim() || 
+      currentAdventure.setting.world_description.trim().length < 50) {
+    validationErrors.push('World description must be at least 50 characters');
+  }
+  
+  if (!currentAdventure.setting?.environment?.trim()) {
+    validationErrors.push('Environment description is required');
+  }
+  
+  // Plot validation
+  if (!currentAdventure.plot?.main_objective?.trim()) {
+    validationErrors.push('Main objective is required');
+  }
+  
+  if (!currentAdventure.plot?.victory_conditions?.trim()) {
+    validationErrors.push('Victory conditions are required');
+  }
+  
+  // Characters validation
+  if (!currentAdventure.characters?.player_role?.trim()) {
+    validationErrors.push('Player role description is required');
+  }
+  
+  if (validationErrors.length > 0) {
+    Alert.alert(
+      'Validation Error',
+      'Please fix the following issues:\n' + validationErrors.join('\n')
+    );
+    return;
+  }
+
+  // Continue with adventure creation...
+  // [rest of the function]
+};
 ```
 
 ## Testing Strategy
