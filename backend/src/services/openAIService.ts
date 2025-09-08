@@ -22,6 +22,14 @@ export interface NarrationResponse {
   };
 }
 
+// Add TTS configuration interface
+export interface TTSConfig {
+  model: 'tts-1' | 'tts-1-hd';
+  voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  speed: number; // 0.25 - 4.0
+  response_format: 'mp3' | 'opus' | 'aac' | 'flac';
+}
+
 export interface GameContext {
   genre: string;
   worldState: WorldState;
@@ -1327,6 +1335,85 @@ Please respond with how the world reacts to this action. Be creative but logical
       logger.warn('Failed to extract adventure details from raw response:', error);
       return null;
     }
+  }
+
+  /**
+   * Generate speech from text using OpenAI TTS
+   */
+  async generateSpeech(text: string, voice: string, speed: number = 1.0, quality: 'standard' | 'high' = 'standard'): Promise<Buffer> {
+    if (!this.openai.apiKey) {
+      throw new CustomError('OpenAI API key not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    // Validate text length
+    if (!text || text.length > 4096) {
+      throw new CustomError('Text must be between 1 and 4096 characters', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate voice
+    const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    if (!validVoices.includes(voice)) {
+      throw new CustomError(`Invalid voice. Valid voices: ${validVoices.join(', ')}`, HTTP_STATUS.BAD_REQUEST);
+    }
+
+    // Validate speed
+    if (speed < 0.25 || speed > 4.0) {
+      throw new CustomError('Speed must be between 0.25 and 4.0', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    try {
+      const model = quality === 'high' ? 'tts-1-hd' : 'tts-1';
+      const response_format = quality === 'high' ? 'flac' : 'mp3';
+
+      const response = await this.openai.audio.speech.create({
+        model: model,
+        voice: voice as any,
+        input: text,
+        speed: speed,
+        response_format: response_format
+      });
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return buffer;
+    } catch (error: any) {
+      logger.error('TTS generation error:', error);
+      throw new CustomError('Failed to generate speech', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Get available voices for TTS
+   */
+  getAvailableVoices(): Array<{id: string, name: string, gender: string}> {
+    return [
+      {id: 'alloy', name: 'Alloy', gender: 'neutral'},
+      {id: 'echo', name: 'Echo', gender: 'male'},
+      {id: 'fable', name: 'Fable', gender: 'male'},
+      {id: 'onyx', name: 'Onyx', gender: 'male'},
+      {id: 'nova', name: 'Nova', gender: 'female'},
+      {id: 'shimmer', name: 'Shimmer', gender: 'female'}
+    ];
+  }
+
+  /**
+   * Validate TTS request text
+   */
+  validateTTSRequest(text: string): boolean {
+    if (!text || typeof text !== 'string') {
+      return false;
+    }
+    
+    // Check length
+    if (text.length > 4096) {
+      return false;
+    }
+    
+    // Check for empty or whitespace-only text
+    if (text.trim().length === 0) {
+      return false;
+    }
+    
+    return true;
   }
 
   private async generateFallbackImage(style: string): Promise<string> {

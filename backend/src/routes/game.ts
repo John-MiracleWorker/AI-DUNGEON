@@ -14,6 +14,7 @@ import {
   AdventureDetails
 } from '../../../shared/types';
 import { logger } from '../utils/logger';
+import { openAIService } from '../services/openAIService';
 
 const router = Router();
 
@@ -750,6 +751,146 @@ router.post('/create-from-template/:templateId', [
   const result = await gameEngine.createGameFromTemplate(templateId, gameRequest, req.user.id);
 
   res.status(HTTP_STATUS.CREATED).json(result);
+}));
+
+/**
+ * @swagger
+ * /api/voices:
+ *   get:
+ *     summary: Get available TTS voices
+ *     tags: [TTS]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of available voices
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 voices:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       gender:
+ *                         type: string
+ */
+router.get('/voices', asyncHandler(async (req: AuthRequest, res: Response) => {
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const voices = openAIService.getAvailableVoices();
+  res.status(HTTP_STATUS.OK).json({ voices });
+}));
+
+/**
+ * @swagger
+ * /api/game/{sessionId}/speech:
+ *   post:
+ *     summary: Generate speech from text narration
+ *     tags: [TTS]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - text
+ *               - voice
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 maxLength: 4096
+ *               voice:
+ *                 type: string
+ *                 enum: [alloy, echo, fable, onyx, nova, shimmer]
+ *               speed:
+ *                 type: number
+ *                 minimum: 0.25
+ *                 maximum: 4.0
+ *                 default: 1.0
+ *               quality:
+ *                 type: string
+ *                 enum: [standard, high]
+ *                 default: standard
+ *     responses:
+ *       200:
+ *         description: Audio stream
+ *         content:
+ *           audio/mpeg:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: Invalid request data
+ *       500:
+ *         description: Server error
+ */
+router.post('/game/:sessionId/speech', [
+  param('sessionId')
+    .notEmpty()
+    .withMessage('Session ID is required'),
+  body('text')
+    .isLength({ min: 1, max: 4096 })
+    .withMessage('Text must be between 1 and 4096 characters'),
+  body('voice')
+    .isIn(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'])
+    .withMessage('Invalid voice'),
+  body('speed')
+    .optional()
+    .isFloat({ min: 0.25, max: 4.0 })
+    .withMessage('Speed must be between 0.25 and 4.0'),
+  body('quality')
+    .optional()
+    .isIn(['standard', 'high'])
+    .withMessage('Quality must be either "standard" or "high"'),
+], asyncHandler(async (req: AuthRequest, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+  }
+
+  if (!req.user) {
+    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+  }
+
+  const { text, voice, speed = 1.0, quality = 'standard' } = req.body;
+
+  try {
+    // Validate the text before processing
+    if (!openAIService.validateTTSRequest(text)) {
+      throw new CustomError('Invalid text for TTS generation', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const audioBuffer = await openAIService.generateSpeech(text, voice, speed, quality);
+    
+    // Set appropriate headers for audio response
+    const contentType = quality === 'high' ? 'audio/flac' : 'audio/mpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', audioBuffer.length);
+    
+    // Send the audio buffer
+    res.status(HTTP_STATUS.OK).send(audioBuffer);
+  } catch (error: any) {
+    logger.error('Speech generation error:', error);
+    throw new CustomError('Failed to generate speech', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
 }));
 
 export default router;

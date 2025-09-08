@@ -42,6 +42,10 @@ export interface GameSettings {
   animationsEnabled: boolean;
   contentRating: 'PG-13' | 'R';
   safetyFilter: boolean;
+  // Audio settings
+  isAudioEnabled: boolean;
+  selectedVoice: string;
+  playbackSpeed: number;
 }
 
 export interface AuthState {

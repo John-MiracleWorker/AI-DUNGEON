@@ -15,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { useAppSelector, useAppDispatch } from '../utils/hooks';
 import { clearRecentGames } from '../store/launcherSlice';
 import { clearAllQueued } from '../store/offlineSlice';
-import { updateSetting } from '../store/settingsSlice';
+import { updateSetting, updateAudioSettings } from '../store/settingsSlice';
 
 interface SettingItemProps {
   title: string;
@@ -83,7 +83,7 @@ export const Settings: React.FC = () => {
   const dispatch = useAppDispatch();
   const { recentGames } = useAppSelector((state) => state.launcher);
   const { queuedActions } = useAppSelector((state) => state.offline);
-  const { contentRating, safetyFilter } = useAppSelector((state) => state.settings);
+  const { contentRating, safetyFilter, isAudioEnabled, selectedVoice, playbackSpeed } = useAppSelector((state) => state.settings);
   
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -123,6 +123,34 @@ export const Settings: React.FC = () => {
 
   const handleSafetyFilterToggle = (value: boolean) => {
     dispatch(updateSetting({ safetyFilter: value }));
+    if (hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  // Audio settings handlers
+  const handleAudioToggle = (value: boolean) => {
+    dispatch(updateAudioSettings({ isAudioEnabled: value }));
+    if (hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleVoiceChange = () => {
+    const voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+    const currentIndex = voices.indexOf(selectedVoice);
+    const nextVoice = voices[(currentIndex + 1) % voices.length];
+    dispatch(updateAudioSettings({ selectedVoice: nextVoice }));
+    if (hapticsEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleSpeedChange = () => {
+    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    const currentIndex = speeds.indexOf(playbackSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+    dispatch(updateAudioSettings({ playbackSpeed: nextSpeed }));
     if (hapticsEnabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -198,6 +226,35 @@ export const Settings: React.FC = () => {
           />
         </SettingSection>
 
+        {/* Audio Settings */}
+        <SettingSection title="Audio">
+          <SettingItem
+            title="Audio Narration"
+            subtitle="Enable text-to-speech for story narration"
+            icon="volume-high"
+            value={isAudioEnabled}
+            onValueChange={handleAudioToggle}
+          />
+          {isAudioEnabled && (
+            <>
+              <SettingItem
+                title={`Voice: ${selectedVoice.charAt(0).toUpperCase() + selectedVoice.slice(1)}`}
+                subtitle="Change the voice used for narration"
+                icon="mic"
+                onPress={handleVoiceChange}
+                showArrow
+              />
+              <SettingItem
+                title={`Speed: ${playbackSpeed}x`}
+                subtitle="Adjust playback speed"
+                icon="speedometer"
+                onPress={handleSpeedChange}
+                showArrow
+              />
+            </>
+          )}
+        </SettingSection>
+
         {/* Content Settings */}
         <SettingSection title="Content">
           <SettingItem
@@ -237,7 +294,7 @@ export const Settings: React.FC = () => {
               title={`Clear Offline Queue (${queuedActions.length})`}
               subtitle="Remove pending offline actions"
               icon="trash"
-              onPress={clearOfflineQueue}
+                onPress={clearOfflineQueue}
               showArrow
             />
           )}

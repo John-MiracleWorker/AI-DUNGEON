@@ -37,6 +37,20 @@ interface OptimizedImageRequest {
   size: 'thumb' | 'medium' | 'full';
 }
 
+// TTS interfaces
+interface Voice {
+  id: string;
+  name: string;
+  gender: string;
+}
+
+interface GenerateSpeechRequest {
+  text: string;
+  voice: string;
+  speed?: number;
+  quality?: 'standard' | 'high';
+}
+
 // Get API URL from environment
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -163,6 +177,22 @@ export const gameApi = createApi({
       }),
     }),
 
+    // TTS endpoints
+    getVoices: builder.query<{ voices: Voice[] }, void>({
+      query: () => '/voices',
+    }),
+
+    generateSpeech: builder.mutation<Blob, { sessionId: string; body: GenerateSpeechRequest }>({
+      query: ({ sessionId, body }) => ({
+        url: `/game/${sessionId}/speech`,
+        method: 'POST',
+        body,
+        responseHandler: async (response) => {
+          return await response.blob();
+        },
+      }),
+    }),
+
     // Health check for connectivity
     healthCheck: builder.query<{ status: string; timestamp: number }, void>({
       query: () => '/health',
@@ -257,6 +287,10 @@ export const {
   useGetOptimizedImageQuery,
   useGetUserStatsQuery,
   useUpdateUserPreferencesMutation,
+  // TTS hooks
+  useGetVoicesQuery,
+  useGenerateSpeechMutation,
+  // Health check for connectivity
   useHealthCheckQuery,
   // Custom Adventure hooks
   useCreateCustomGameMutation,

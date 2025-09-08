@@ -5,9 +5,13 @@ import {
   SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  TouchableOpacity,
+  Text,
+  View
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppSelector, useAppDispatch } from '../utils/hooks';
 import { 
   useSubmitTurnMutation, 
@@ -21,7 +25,9 @@ import {
   updateQuickActions 
 } from '../store/gameSlice';
 import { setLoading, setError } from '../store/uiSlice';
+import { updateAudioSettings } from '../store/settingsSlice';
 import { ChatContainer, InputBox, GameControls } from '../components/game';
+import AudioPlayer from '../components/game/AudioPlayer';
 
 export const GameScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -30,6 +36,7 @@ export const GameScreen: React.FC = () => {
   
   const { currentSession } = useAppSelector((state) => state.game);
   const { isLoading, error } = useAppSelector((state) => state.ui);
+  const { isAudioEnabled } = useAppSelector((state) => state.settings);
   
   const [submitTurn, { isLoading: isSubmittingTurn }] = useSubmitTurnMutation();
   const [saveGame, { isLoading: isSaving }] = useSaveGameMutation();
@@ -180,6 +187,11 @@ export const GameScreen: React.FC = () => {
   const handleSettings = () => {
     navigation.navigate('Settings' as never);
   };
+
+  const toggleAudio = () => {
+    dispatch(updateAudioSettings({ isAudioEnabled: !isAudioEnabled }));
+  };
+
   if (!isReady) {
     return (
       <SafeAreaView style={styles.container}>
@@ -187,6 +199,9 @@ export const GameScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
+
+  // Get the latest turn for audio playback
+  const latestTurn = currentSession?.turn_history[currentSession.turn_history.length - 1];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -200,6 +215,14 @@ export const GameScreen: React.FC = () => {
           turns={currentSession.turn_history} 
           isLoading={isSubmittingTurn}
         />
+        
+        {/* Audio Player - only show if audio is enabled and we have a turn */}
+        {isAudioEnabled && latestTurn && (
+          <AudioPlayer
+            sessionId={currentSession.session_id}
+            narrationText={latestTurn.narration}
+          />
+        )}
         
         <InputBox
           onSubmit={handleSubmitTurn}
@@ -216,6 +239,21 @@ export const GameScreen: React.FC = () => {
           currentLocation={currentSession.world_state.location}
           turnCount={currentSession.turn_history.length}
         />
+        
+        {/* Audio Toggle Button */}
+        <TouchableOpacity 
+          style={styles.audioToggle}
+          onPress={toggleAudio}
+        >
+          <Ionicons 
+            name={isAudioEnabled ? "volume-high" : "volume-mute"} 
+            size={24} 
+            color="#ffffff" 
+          />
+          <Text style={styles.audioToggleText}>
+            {isAudioEnabled ? "Audio ON" : "Audio OFF"}
+          </Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -228,5 +266,22 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
+  },
+  audioToggle: {
+    position: 'absolute',
+    bottom: 100,
+    right: 16,
+    backgroundColor: '#6b46c1',
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  audioToggleText: {
+    color: '#ffffff',
+    fontSize: 12,
+    marginLeft: 4,
   },
 });
