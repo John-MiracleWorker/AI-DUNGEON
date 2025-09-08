@@ -145,6 +145,50 @@ export const CustomAdventureScreen: React.FC = () => {
       return;
     }
 
+    // Validate all required fields before submission
+    const validationErrors = [];
+    
+    // Basic Info validation
+    if (!currentAdventure.title?.trim() || currentAdventure.title.trim().length < 3) {
+      validationErrors.push('Title must be at least 3 characters');
+    }
+    
+    if (!currentAdventure.description?.trim() || currentAdventure.description.trim().length < 10) {
+      validationErrors.push('Description must be at least 10 characters');
+    }
+    
+    // Setting validation
+    if (!currentAdventure.setting?.world_description?.trim() || 
+        currentAdventure.setting.world_description.trim().length < 50) {
+      validationErrors.push('World description must be at least 50 characters');
+    }
+    
+    if (!currentAdventure.setting?.environment?.trim()) {
+      validationErrors.push('Environment description is required');
+    }
+    
+    // Plot validation
+    if (!currentAdventure.plot?.main_objective?.trim()) {
+      validationErrors.push('Main objective is required');
+    }
+    
+    if (!currentAdventure.plot?.victory_conditions?.trim()) {
+      validationErrors.push('Victory conditions are required');
+    }
+    
+    // Characters validation
+    if (!currentAdventure.characters?.player_role?.trim()) {
+      validationErrors.push('Player role description is required');
+    }
+    
+    if (validationErrors.length > 0) {
+      Alert.alert(
+        'Validation Error',
+        'Please fix the following issues:\n' + validationErrors.join('\n')
+      );
+      return;
+    }
+
     try {
       const customRequest = {
         genre: 'custom' as const,
@@ -182,7 +226,18 @@ export const CustomAdventureScreen: React.FC = () => {
 
       // Clean up and navigate to game
       dispatch(stopCreating());
-      (navigation as any).navigate('Game', { sessionId: result.session_id });
+      
+      // Use safer navigation with error handling
+      try {
+        (navigation as any).navigate('Game', { sessionId: result.session_id });
+      } catch (navError) {
+        console.error('Navigation failed:', navError);
+        Alert.alert(
+          'Navigation Error',
+          'Adventure created successfully but navigation failed. Please go to the game library to access your adventure.'
+        );
+        navigation.goBack(); // Navigate back to previous screen as fallback
+      }
 
     } catch (error: any) {
       console.error('Failed to create custom adventure:', error);

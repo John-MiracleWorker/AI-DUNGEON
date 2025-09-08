@@ -148,6 +148,11 @@ class GameEngine {
       // Sanitize adventure content
       const sanitizedDetails = CustomAdventureValidator.sanitizeAdventureContent(request.adventure_details);
       
+      // Ensure all required fields are present
+      if (!sanitizedDetails.title || !sanitizedDetails.description) {
+        throw new CustomError('Missing required adventure details', HTTP_STATUS.BAD_REQUEST);
+      }
+      
       const sessionId = generateSessionId();
       const adventureId = `adv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -265,7 +270,10 @@ class GameEngine {
 
     } catch (error) {
       logger.error('Failed to create custom adventure:', error);
-      throw error;
+      if (error instanceof CustomError) {
+        throw error;
+      }
+      throw new CustomError('Failed to create custom adventure', HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
