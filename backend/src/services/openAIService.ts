@@ -318,18 +318,59 @@ class OpenAIService {
 
       if (error.response?.status === 400) {
         logger.error('Image prompt rejected:', prompt);
-        // Try fallback with DALL-E 3 if GPT-image-1 fails
-        if (config?.model === 'gpt-image-1') {
-          logger.info('Falling back to DALL-E 3 for image generation');
-          const fallbackConfig = { ...config, model: 'dall-e-3' as const };
-          return this.generateImage(prompt, style, adventureDetails, fallbackConfig);
+        // Log the specific error message from OpenAI
+        if (error.response?.data?.error?.message) {
+          logger.error('OpenAI error details:', error.response.data.error.message);
         }
-        // Return a placeholder or retry with safer prompt
-        return this.generateFallbackImage(style);
+        // Try fallback with DALL-E 3 if GPT-image-1 fails, but only once
+        if (!config || config.model === 'gpt-image-1') {
+          logger.info('Falling back to DALL-E 3 for image generation');
+          const fallbackConfig = { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', enhancementLevel: 'detailed' } as ImageGenerationConfig;
+          try {
+            return await this.generateImageWithModel(prompt, style, adventureDetails, fallbackConfig);
+          } catch (fallbackError) {
+            logger.error('Fallback image generation also failed:', fallbackError);
+          }
+        }
+        // Return a placeholder image URL or empty string
+        return '';
       }
 
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Generate image with specific model to avoid infinite recursion
+   */
+  private async generateImageWithModel(prompt: string, style: string, adventureDetails: AdventureDetails | undefined, config: ImageGenerationConfig): Promise<string> {
+    const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
+    
+    const response = await axios.post(
+      `${this.baseURL}/images/generations`,
+      {
+        model: config.model,
+        prompt: enhancedPrompt,
+        size: config.size,
+        quality: config.quality,
+        style: config.style,
+        n: 1,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000,
+      }
+    );
+
+    const imageUrl = response.data.data[0]?.url;
+    if (!imageUrl) {
+      throw new Error(`No image URL returned from ${config.model}`);
+    }
+
+    return imageUrl;
   }
 
   /**
@@ -388,13 +429,18 @@ class OpenAIService {
 
       if (error.response?.status === 400) {
         logger.error('Enhanced image prompt rejected:', prompt);
-        // Try fallback model if current fails
+        // Try fallback model if current fails, but only once
         if (config.model === 'gpt-image-1') {
           logger.info('Falling back to DALL-E 3 for enhanced image generation');
-          const fallbackConfig = { ...config, model: 'dall-e-3' as const };
-          return this.generateImageEnhanced(prompt, fallbackConfig, adventureContext);
+          const fallbackConfig = { model: 'dall-e-3', size: config.size || '1024x1024', quality: 'standard', style: config.style || 'vivid', enhancementLevel: 'detailed' } as ImageGenerationConfig;
+          try {
+            return await this.generateImageWithModel(prompt, 'fantasy_art', adventureContext, fallbackConfig);
+          } catch (fallbackError) {
+            logger.error('Fallback image generation also failed:', fallbackError);
+          }
         }
-        throw new Error('Image generation failed with all models');
+        // Return a placeholder image URL or empty string
+        return '';
       }
 
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -792,7 +838,9 @@ Please respond with how the world reacts to this action. Be creative but logical
       ];
       
       const randomPrompt = fallbackPrompts[Math.floor(Math.random() * fallbackPrompts.length)];
-      return await this.generateImage(randomPrompt, style);
+      // Use the direct model method to avoid recursion
+      const config: ImageGenerationConfig = { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', enhancementLevel: 'detailed' };
+      return await this.generateImageWithModel(randomPrompt, style, undefined, config);
     } catch (error) {
       logger.error('Fallback image generation also failed:', error);
       // Return a placeholder image URL or empty string

@@ -46,13 +46,38 @@ const AdventureSettingSchema = new Schema({
     maxlength: 2000 
   },
   time_period: { 
-    type: String, 
-    required: true,
-    enum: [
-      'prehistoric', 'ancient', 'medieval', 'renaissance', 
-      'industrial', 'modern', 'near_future', 'far_future', 
-      'post_apocalyptic', 'custom'
-    ]
+    type: {
+      type: String,
+      required: true,
+      enum: ['predefined', 'custom']
+    },
+    value: {
+      type: String,
+      required: true,
+      validate: {
+        validator: function(v: string) {
+          // For predefined time periods, validate against the list
+          const predefinedPeriods = [
+            'prehistoric', 'ancient', 'medieval', 'renaissance', 
+            'industrial', 'modern', 'near_future', 'far_future', 
+            'post_apocalyptic', 'custom'
+          ];
+          // @ts-ignore
+          const doc = this.ownerDocument ? this.ownerDocument() : this;
+          // @ts-ignore
+          if (doc && doc.time_period && doc.time_period.type === 'predefined') {
+            return predefinedPeriods.includes(v);
+          }
+          // For custom time periods, just check that it's not empty
+          return v && v.length > 0;
+        },
+        message: 'Invalid time period value'
+      }
+    },
+    customDescription: String,
+    era: String,
+    technologicalLevel: String,
+    culturalContext: String
   },
   environment: { 
     type: String, 
