@@ -111,11 +111,18 @@ async function startServer() {
     await connectDatabase();
     await connectRedis();
 
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📚 API Documentation available at http://localhost:${PORT}/api/docs`);
       logger.info(`🔍 Health check available at http://localhost:${PORT}/health`);
     });
+
+    // Handle server errors
+    server.on('error', (error) => {
+      logger.error('Server error:', error);
+      process.exit(1);
+    });
+
   } catch (error) {
     logger.error('Failed to start server:', error);
     process.exit(1);
