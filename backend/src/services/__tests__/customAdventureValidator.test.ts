@@ -10,15 +10,19 @@ describe('CustomAdventureValidator', () => {
         description: 'A test adventure for validation that meets minimum length requirements for proper testing',
         setting: {
           world_description: 'A fantasy world with magic and mysterious creatures roaming the lands',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'A lush forest with ancient trees and hidden caves'
         },
         characters: {
           player_role: 'A brave knight on a noble quest to save the realm',
           key_npcs: [{
+            id: 'test-npc-1',
             name: 'Test NPC',
             description: 'A wise old sage who guides heroes on their journey',
-            relationship: 'mentor'
+            relationship: 'mentor',
+            traits: [],
+            relationships: [],
+            importance: 'major'
           }]
         },
         plot: {
@@ -46,7 +50,7 @@ describe('CustomAdventureValidator', () => {
         description: 'Test description that meets minimum requirements for validation testing',
         setting: {
           world_description: '',
-          time_period: '',
+          time_period: { type: 'predefined', value: '' },
           environment: ''
         },
         characters: {
@@ -79,7 +83,7 @@ describe('CustomAdventureValidator', () => {
         description: 'Test description that meets minimum requirements',
         setting: {
           world_description: 'Test world description that meets minimum requirements for validation',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Test environment description'
         },
         characters: {
@@ -111,15 +115,19 @@ describe('CustomAdventureValidator', () => {
         description: 'Test description that meets minimum requirements for validation testing',
         setting: {
           world_description: 'Test world description that meets minimum requirements for validation',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Test environment description'
         },
         characters: {
           player_role: 'Knight character description',
           key_npcs: [{
+            id: 'test-npc-1',
             name: '', // Invalid empty name
             description: 'Test NPC description',
-            relationship: 'ally'
+            relationship: 'ally',
+            traits: [],
+            relationships: [],
+            importance: 'major'
           }]
         },
         plot: {
@@ -149,15 +157,19 @@ describe('CustomAdventureValidator', () => {
         description: 'Test description with <img src="x" onerror="alert(1)"> content',
         setting: {
           world_description: 'A fantasy world <script>alert("test")</script> with magic',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Test environment <b>description</b>'
         },
         characters: {
           player_role: 'Knight <script>hack</script> character description',
           key_npcs: [{
+            id: 'test-npc-1',
             name: 'Test <img src=x> NPC',
             description: 'NPC <script>alert(1)</script> description',
-            relationship: 'ally'
+            relationship: 'ally',
+            traits: [],
+            relationships: [],
+            importance: 'major'
           }]
         },
         plot: {
@@ -188,15 +200,19 @@ describe('CustomAdventureValidator', () => {
         description: 'A completely safe description with proper content',
         setting: {
           world_description: 'A safe fantasy world with detailed descriptions',
-          time_period: 'medieval',
+          time_period: { type: 'predefined', value: 'medieval' },
           environment: 'Safe environment description'
         },
         characters: {
           player_role: 'A brave knight character description',
           key_npcs: [{
+            id: 'test-npc-1',
             name: 'Safe NPC Name',
             description: 'Safe NPC description',
-            relationship: 'ally'
+            relationship: 'ally',
+            traits: [],
+            relationships: [],
+            importance: 'major'
           }]
         },
         plot: {

@@ -268,15 +268,20 @@ class OpenAIService {
 
       const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
-        throw new Error('No adventure details returned from OpenAI');
+        throw new CustomError('No adventure details returned from OpenAI', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
       let adventureDetails: AdventureDetails;
       try {
         adventureDetails = JSON.parse(aiResponse);
+        
+        // Validate essential fields
+        if (!adventureDetails.title || !adventureDetails.description) {
+          throw new CustomError('Generated adventure is missing required fields', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+        }
       } catch (err) {
         logger.error('Failed to parse adventure details:', aiResponse);
-        throw new Error('Invalid adventure details format');
+        throw new CustomError('Invalid adventure details format from AI service', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
       const processingTime = Date.now() - startTime;
@@ -295,7 +300,12 @@ class OpenAIService {
         throw new CustomError('Invalid OpenAI API key', HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
-      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      // Propagate the error with more context
+      if (error instanceof CustomError) {
+        throw error;
+      }
+
+      throw new CustomError(`AI service error: ${error.message}`, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 

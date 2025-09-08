@@ -279,16 +279,24 @@ class GameEngine {
   }
 
   async createCustomGameFromPrompt(request: PromptAdventureRequest, userId: string): Promise<CustomAdventureResponse> {
-    const adventureDetails = await openAIService.generateAdventureFromPrompt(request.prompt);
-    const customRequest: CustomAdventureRequest = {
-      genre: 'custom',
-      style_preference: request.style_preference || 'detailed',
-      image_style: request.image_style || 'fantasy_art',
-      safety_filter: request.safety_filter,
-      content_rating: request.content_rating,
-      adventure_details: adventureDetails
-    };
-    return this.createCustomGame(customRequest, userId);
+    try {
+      const adventureDetails = await openAIService.generateAdventureFromPrompt(request.prompt);
+      const customRequest: CustomAdventureRequest = {
+        genre: 'custom',
+        style_preference: request.style_preference || 'detailed',
+        image_style: request.image_style || 'fantasy_art',
+        safety_filter: request.safety_filter,
+        content_rating: request.content_rating,
+        adventure_details: adventureDetails
+      };
+      return this.createCustomGame(customRequest, userId);
+    } catch (error) {
+      logger.error('Failed to create custom game from prompt:', error);
+      if (error instanceof CustomError) {
+        throw error;
+      }
+      throw new CustomError('Failed to generate adventure from prompt', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
   }
 
   async processTurn(request: TurnRequest, userId: string): Promise<TurnResponse> {

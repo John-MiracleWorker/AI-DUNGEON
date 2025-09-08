@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
@@ -64,7 +65,20 @@ export const PromptAdventureScreen: React.FC = () => {
       (navigation as any).navigate('Game', { sessionId: result.session_id });
     } catch (error: any) {
       console.error('Failed to create prompt adventure:', error);
-      Alert.alert('Error', error.data?.message || 'Failed to create adventure');
+      // Enhanced error handling
+      let errorMessage = 'Failed to create adventure. Please try again.';
+      
+      if (error.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+      } else if (error.status === 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (error.status === 400) {
+        errorMessage = 'Invalid request. Please check your input.';
+      }
+      
+      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -85,6 +99,7 @@ export const PromptAdventureScreen: React.FC = () => {
         selectedValue={stylePreference}
         onValueChange={itemValue => setStylePreference(itemValue as any)}
         style={styles.picker}
+        enabled={!isLoading}
       >
         <Picker.Item label="Detailed" value="detailed" />
         <Picker.Item label="Concise" value="concise" />
@@ -95,6 +110,7 @@ export const PromptAdventureScreen: React.FC = () => {
         selectedValue={imageStyle}
         onValueChange={itemValue => setImageStyle(itemValue as any)}
         style={styles.picker}
+        enabled={!isLoading}
       >
         <Picker.Item label="Fantasy Art" value="fantasy_art" />
         <Picker.Item label="Comic Book" value="comic_book" />
@@ -106,7 +122,14 @@ export const PromptAdventureScreen: React.FC = () => {
         onPress={handleCreate}
         disabled={isLoading}
       >
-        <Text style={styles.buttonText}>{isLoading ? 'Creating...' : 'Start Adventure'}</Text>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator color="#ffffff" size="small" />
+            <Text style={styles.buttonText}>Creating...</Text>
+          </View>
+        ) : (
+          <Text style={styles.buttonText}>Start Adventure</Text>
+        )}
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -150,6 +173,10 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });
 

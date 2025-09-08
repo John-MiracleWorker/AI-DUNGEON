@@ -466,7 +466,7 @@ router.post('/new-custom-game', [
 router.post('/new-prompt-game', [
   body('prompt')
     .isLength({ min: 1, max: 1000 })
-    .withMessage('Prompt is required'),
+    .withMessage('Prompt is required and must be between 1 and 1000 characters'),
   body('style_preference')
     .optional()
     .isIn(Object.values(STYLE_PREFERENCES))
@@ -486,17 +486,43 @@ router.post('/new-prompt-game', [
 ], asyncHandler(async (req: AuthRequest, res: Response) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    throw new CustomError('Validation failed', HTTP_STATUS.BAD_REQUEST);
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      error: 'Validation failed',
+      message: errors.array().map(e => e.msg).join(', '),
+      status: HTTP_STATUS.BAD_REQUEST
+    });
   }
 
   if (!req.user) {
-    throw new CustomError(ERROR_MESSAGES.UNAUTHORIZED_ACCESS, HTTP_STATUS.UNAUTHORIZED);
+    return res.status(HTTP_STATUS.UNAUTHORIZED).json({
+      error: ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
+      message: ERROR_MESSAGES.UNAUTHORIZED_ACCESS,
+      status: HTTP_STATUS.UNAUTHORIZED
+    });
   }
 
-  const promptRequest: PromptAdventureRequest = req.body;
-  const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
-
-  res.status(HTTP_STATUS.CREATED).json(result);
+  try {
+    const promptRequest: PromptAdventureRequest = req.body;
+    const result = await gameEngine.createCustomGameFromPrompt(promptRequest, req.user.id);
+    res.status(HTTP_STATUS.CREATED).json(result);
+  } catch (error: any) {
+    logger.error('Failed to create prompt adventure:', error);
+    
+    // Enhanced error response
+    if (error instanceof CustomError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        message: error.message,
+        status: error.statusCode
+      });
+    }
+    
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      error: 'Failed to create adventure',
+      message: 'An unexpected error occurred while creating your adventure',
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR
+    });
+  }
 }));
 
 /**
