@@ -49,17 +49,17 @@ const WIZARD_STEPS = [
   },
   {
     id: 2,
-    title: 'Characters',
-    description: 'Player role and NPCs',
-    icon: 'people',
-    component: CharacterStep,
-  },
-  {
-    id: 3,
     title: 'Plot & Goals',
     description: 'Objectives and story hooks',
     icon: 'map',
     component: PlotStep,
+  },
+  {
+    id: 3,
+    title: 'Characters',
+    description: 'Player role and NPCs',
+    icon: 'people',
+    component: CharacterStep,
   },
   {
     id: 4,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -24,6 +24,13 @@ export const PlotStep: React.FC = () => {
   
   const [newSecondaryGoal, setNewSecondaryGoal] = useState('');
   const [newPlotHook, setNewPlotHook] = useState('');
+
+  useEffect(() => {
+    if (!currentAdventure) {
+      // Handle case where adventure data is not available
+      console.warn('Adventure data not available in PlotStep');
+    }
+  }, [currentAdventure]);
 
   const plot = currentAdventure?.plot || {
     main_objective: '',
@@ -77,7 +84,7 @@ export const PlotStep: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {plot.secondary_goals.length > 0 && (
+      {(plot.secondary_goals && plot.secondary_goals.length > 0) && (
         <View style={styles.itemsList}>
           {plot.secondary_goals.map((goal, index) => (
             <View key={index} style={styles.listItem}>
@@ -138,7 +145,7 @@ export const PlotStep: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {plot.plot_hooks.length > 0 && (
+      {(plot.plot_hooks && plot.plot_hooks.length > 0) && (
         <View style={styles.itemsList}>
           {plot.plot_hooks.map((hook, index) => (
             <View key={index} style={styles.listItem}>

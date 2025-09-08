@@ -458,19 +458,19 @@ export const selectCanNavigateNext = (state: { customAdventure: CustomAdventureS
   // Check if current step is complete
   switch (currentStep) {
     case 0: // Basic Info
-      return currentAdventure.title.trim().length >= 3 && 
-             currentAdventure.description.trim().length >= 10;
+      return currentAdventure.title?.trim().length >= 3 && 
+             currentAdventure.description?.trim().length >= 10;
     case 1: // Setting
-      return currentAdventure.setting.world_description.trim().length >= 50 &&
-             currentAdventure.setting.environment.trim().length > 0 &&
-             (typeof currentAdventure.setting.time_period === 'object' 
-               ? currentAdventure.setting.time_period.value.trim().length > 0
-               : currentAdventure.setting.time_period.trim().length > 0);
-    case 2: // Characters
-      return currentAdventure.characters.player_role.trim().length > 0;
-    case 3: // Plot
-      return currentAdventure.plot.main_objective.trim().length > 0 &&
-             currentAdventure.plot.victory_conditions.trim().length > 0;
+      return currentAdventure.setting?.world_description?.trim().length >= 50 &&
+             currentAdventure.setting?.environment?.trim().length > 0 &&
+             (typeof currentAdventure.setting?.time_period === 'object' 
+               ? currentAdventure.setting?.time_period?.value?.trim().length > 0
+               : currentAdventure.setting?.time_period?.trim().length > 0);
+    case 2: // Plot
+      return currentAdventure.plot?.main_objective?.trim().length > 0 &&
+             currentAdventure.plot?.victory_conditions?.trim().length > 0;
+    case 3: // Characters
+      return currentAdventure.characters?.player_role?.trim().length > 0;
     case 4: // Style
       return true; // Style has defaults
     default:
