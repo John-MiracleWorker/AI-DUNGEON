@@ -15,6 +15,12 @@ import { useAppSelector, useAppDispatch } from '../../utils/hooks';
 import { updateAudioSettings } from '../../store/settingsSlice';
 import { useGenerateSpeechMutation } from '../../services/gameApi';
 
+export const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+};
+
 interface AudioPlayerProps {
   sessionId: string;
   narrationText: string;
@@ -182,12 +188,6 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   const handleSpeedChange = (speed: number) => {
     dispatch(updateAudioSettings({ playbackSpeed: speed }));
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds);
-    const secs = Math.floor((seconds - mins) * 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
   if (!isAudioEnabled) {
