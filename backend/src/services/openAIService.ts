@@ -250,17 +250,17 @@ class OpenAIService {
 
     const startTime = Date.now();
 
+    // Default to GPT-image-1 (newest model) with fallback to DALL-E 3
+    const imageConfig: ImageGenerationConfig = config || {
+      model: 'gpt-image-1',
+      size: '1024x1024',
+      quality: 'hd',
+      style: 'vivid',
+      enhancementLevel: 'detailed'
+    };
+
     try {
       const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
-      
-      // Default to GPT-image-1 (newest model) with fallback to DALL-E 3
-      const imageConfig: ImageGenerationConfig = config || {
-        model: 'gpt-image-1',
-        size: '1024x1024',
-        quality: 'hd',
-        style: 'vivid',
-        enhancementLevel: 'detailed'
-      };
 
       // Validate the prompt before sending to OpenAI
       const validation = this.validateImagePrompt(enhancedPrompt);
@@ -269,15 +269,19 @@ class OpenAIService {
         throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
       }
 
-      const response = await this.openai.images.generate({
+      const params: any = {
         model: imageConfig.model,
         prompt: enhancedPrompt,
         n: 1,
         size: imageConfig.size as any,
-        quality: imageConfig.quality,
-        style: imageConfig.style,
         response_format: 'url'
-      });
+      };
+      if (['gpt-image-1', 'dall-e-3'].includes(imageConfig.model)) {
+        params.quality = imageConfig.quality;
+        params.style = imageConfig.style;
+      }
+
+      const response = await this.openai.images.generate(params);
 
       const imageUrl = response.data?.[0]?.url;
       if (!imageUrl) {
@@ -291,7 +295,8 @@ class OpenAIService {
 
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      logger.error(`Image generation failed after ${processingTime}ms:`, error);
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      logger.error(`Image generation failed after ${processingTime}ms using model ${imageConfig.model}: ${errorMessage}`, error);
 
       if (error.response?.status === 429) {
         throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
@@ -299,22 +304,27 @@ class OpenAIService {
 
       if (error.response?.status === 400) {
         logger.error('Image prompt rejected:', prompt);
-        // Log the specific error message from OpenAI
         if (error.response?.data?.error?.message) {
-          logger.error('OpenAI error details:', error.response.data.error.message);
+          logger.error(`OpenAI error details: ${error.response.data.error.message}`);
         }
-        // Try fallback with DALL-E 3 if GPT-image-1 fails, but only once
         if (!config || config.model === 'gpt-image-1') {
-          logger.info('Falling back to DALL-E 3 for image generation');
-          const fallbackConfig = { model: 'dall-e-3', size: '1024x1024', quality: 'standard', style: 'vivid', enhancementLevel: 'detailed' } as ImageGenerationConfig;
+          const fallbackConfig = {
+            model: 'dall-e-3',
+            size: '1024x1024',
+            quality: 'standard',
+            style: 'vivid',
+            enhancementLevel: 'detailed'
+          } as ImageGenerationConfig;
+          logger.info(`Falling back to ${fallbackConfig.model} for image generation`);
           try {
             return await this.generateImageWithModel(prompt, style, adventureDetails, fallbackConfig);
-          } catch (fallbackError) {
-            logger.error('Fallback image generation also failed:', fallbackError);
+          } catch (fallbackError: any) {
+            const fallbackMessage = fallbackError.response?.data?.error?.message || fallbackError.message;
+            logger.error(`Fallback image generation failed with model ${fallbackConfig.model}: ${fallbackMessage}`, fallbackError);
+            throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
           }
         }
-        // Return a placeholder image URL or empty string
-        return '';
+        throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
       }
 
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -334,22 +344,30 @@ class OpenAIService {
       throw new Error('Invalid image prompt: ' + validation.errors.join(', '));
     }
     
-    const response = await this.openai.images.generate({
+    const params: any = {
       model: config.model,
       prompt: enhancedPrompt,
       n: 1,
       size: config.size as any,
-      quality: config.quality,
-      style: config.style,
       response_format: 'url'
-    });
-
-    const imageUrl = response.data?.[0]?.url;
-    if (!imageUrl) {
-      throw new Error(`No image URL returned from ${config.model}`);
+    };
+    if (['gpt-image-1', 'dall-e-3'].includes(config.model)) {
+      params.quality = config.quality;
+      params.style = config.style;
     }
 
-    return imageUrl;
+    try {
+      const response = await this.openai.images.generate(params);
+      const imageUrl = response.data?.[0]?.url;
+      if (!imageUrl) {
+        throw new Error(`No image URL returned from ${config.model}`);
+      }
+      return imageUrl;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || error.message;
+      logger.error(`Image generation failed with model ${config.model}: ${errorMessage}`, error);
+      throw error;
+    }
   }
 
   /**
