@@ -29,23 +29,25 @@ export const TurnDisplay: React.FC<TurnDisplayProps> = ({
 
   const renderImage = () => {
     return (
-      <ImageDisplay
-        imageUrl={turn.image_url}
-        onRetry={handleRetry}
-        onError={() => console.log('Image failed to load')}
-        onLoad={() => console.log('Image loaded successfully')}
-      />
-      {turn.image_error && (
-        <View style={styles.errorInfoContainer}>
-          <Text style={styles.errorInfoTitle}>Image Generation Issue:</Text>
-          <Text style={styles.errorInfoText}>
-            {turn.image_error.errorMessage}
-          </Text>
-          <Text style={styles.errorInfoDetail}>
-            Model: {turn.image_error.model} | Type: {turn.image_error.errorType}
-          </Text>
-        </View>
-      )
+      <>
+        <ImageDisplay
+          imageUrl={turn.image_url}
+          onRetry={handleRetry}
+          onError={() => console.log('Image failed to load')}
+          onLoad={() => console.log('Image loaded successfully')}
+        />
+        {turn.image_error && (
+          <View style={styles.errorInfoContainer}>
+            <Text style={styles.errorInfoTitle}>Image Generation Issue:</Text>
+            <Text style={styles.errorInfoText}>
+              {turn.image_error.errorMessage}
+            </Text>
+            <Text style={styles.errorInfoDetail}>
+              Model: {turn.image_error.model} | Type: {turn.image_error.errorType}
+            </Text>
+          </View>
+        )}
+      </>
     );
   };
 
