@@ -76,6 +76,11 @@ REACT_APP_API_URL=http://localhost:3001/api
 - `npm run test` - Run all tests
 - `npm run build` - Build for production
 
+## Rebuild and Restart
+
+- `./rebuild-dev.sh` - Completely rebuild and restart the development environment
+- `./rebuild-prod.sh` - Completely rebuild and restart the production environment
+
 ## API Documentation
 
 API documentation is available at `/api/docs` when running the development server.
