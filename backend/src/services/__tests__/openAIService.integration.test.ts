@@ -27,17 +27,30 @@ describe('OpenAI Service Integration', () => {
   });
   
   describe('Prompt Validation', () => {
-    it('should validate prompt length', () => {
+    it('should validate prompt length', async () => {
       const shortPrompt = 'A simple scene';
-      const validation = (openAIService as any).validateImagePrompt(shortPrompt);
+      const validation = await (openAIService as any).validateImagePrompt(shortPrompt);
       expect(validation.isValid).toBe(true);
     });
-    
-    it('should reject overly long prompts', () => {
+
+    it('should reject overly long prompts', async () => {
       const longPrompt = 'A'.repeat(5000);
-      const validation = (openAIService as any).validateImagePrompt(longPrompt);
+      const validation = await (openAIService as any).validateImagePrompt(longPrompt);
       expect(validation.isValid).toBe(false);
       expect(validation.errors).toContain('Prompt exceeds maximum length of 4000 characters');
+    });
+
+    it('should allow mild content like battle scenes with blood', async () => {
+      const prompt = 'A fierce battle scene with blood on the ground';
+      const validation = await (openAIService as any).validateImagePrompt(prompt);
+      expect(validation.isValid).toBe(true);
+    });
+
+    it('should block prompts with explicit gore or nudity', async () => {
+      const prompt = 'Graphic gore and complete nudity in explicit detail';
+      const validation = await (openAIService as any).validateImagePrompt(prompt);
+      expect(validation.isValid).toBe(false);
+      expect(validation.errors.some((e: string) => e.includes('gore') || e.includes('nudity'))).toBe(true);
     });
   });
 });
