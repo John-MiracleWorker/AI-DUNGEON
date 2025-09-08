@@ -136,6 +136,21 @@ export interface LocationData {
   npcs: string[];
 }
 
+export interface ImageGenerationConfig {
+  model: 'gpt-image-1' | 'dall-e-3' | 'dall-e-2';
+  size: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
+  quality: 'standard' | 'hd';
+  style?: 'vivid' | 'natural';
+  enhancementLevel: 'basic' | 'detailed' | 'artistic';
+}
+
+export interface EnhancedImageRequest {
+  prompt: string;
+  adventureContext: AdventureDetails;
+  config: ImageGenerationConfig;
+  fallbackEnabled: boolean;
+}
+
 export interface StyleConfig {
   fantasy_art: {
     prefix: string;
@@ -165,9 +180,18 @@ export interface AdventureDetails {
   style_preferences: StylePreferences;
 }
 
+export interface TimePeriodSelection {
+  type: 'predefined' | 'custom';
+  value: string;
+  customDescription?: string;
+  era?: string;
+  technologicalLevel?: string;
+  culturalContext?: string;
+}
+
 export interface AdventureSetting {
   world_description: string;
-  time_period: string;
+  time_period: TimePeriodSelection;
   environment: string;
   special_rules?: string;
   locations?: string[];
@@ -179,12 +203,25 @@ export interface AdventureCharacters {
   relationships?: Relationship[];
 }
 
+export interface NPCRelationship {
+  targetNpcId: string;
+  type: 'ally' | 'enemy' | 'neutral' | 'family' | 'romantic' | 'rival';
+  description: string;
+  strength: number; // 1-10
+}
+
 export interface AdventureNPC {
+  id: string;
   name: string;
   description: string;
   relationship: string;
   personality?: string;
   goals?: string;
+  traits: string[];
+  backstory?: string;
+  importance: 'major' | 'minor' | 'background';
+  templateId?: string;
+  relationships: NPCRelationship[];
 }
 
 export interface Relationship {
@@ -249,6 +286,18 @@ export interface CustomAdventureResponse {
     quick_actions: string[];
   };
   world_state: WorldState;
+}
+
+export interface NPCTemplate {
+  id: string;
+  name: string;
+  category: 'fantasy' | 'sci-fi' | 'modern' | 'horror' | 'custom';
+  archetype: string;
+  description: string;
+  personality: string;
+  goals: string;
+  traits: string[];
+  commonRelationships: string[];
 }
 
 export interface AdventureTemplate {

@@ -6,7 +6,8 @@ import {
   CustomAdventureState,
   UserAdventureItem,
   AdventureTemplate,
-  AdventureWizardStep
+  AdventureWizardStep,
+  TimePeriodSelection
 } from '../types';
 
 const initialState: CustomAdventureState = {
@@ -27,7 +28,10 @@ const createEmptyAdventure = (): AdventureDetails => ({
   description: '',
   setting: {
     world_description: '',
-    time_period: 'medieval',
+    time_period: {
+      type: 'predefined',
+      value: 'medieval',
+    },
     environment: '',
     special_rules: '',
     locations: []
@@ -124,6 +128,12 @@ const customAdventureSlice = createSlice({
       }
     },
 
+    updateTimePeriod: (state, action: PayloadAction<TimePeriodSelection>) => {
+      if (state.currentAdventure?.setting) {
+        state.currentAdventure.setting.time_period = action.payload;
+      }
+    },
+
     updateCharacters: (state, action: PayloadAction<Partial<AdventureDetails['characters']>>) => {
       if (state.currentAdventure) {
         state.currentAdventure.characters = {
@@ -158,9 +168,20 @@ const customAdventureSlice = createSlice({
       relationship: string;
       personality?: string;
       goals?: string;
+      traits?: string[];
+      backstory?: string;
+      importance?: 'major' | 'minor' | 'background';
+      templateId?: string;
     }>) => {
       if (state.currentAdventure) {
-        state.currentAdventure.characters.key_npcs.push(action.payload);
+        const newNPC = {
+          id: `npc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          ...action.payload,
+          traits: action.payload.traits || [],
+          importance: action.payload.importance || 'minor',
+          relationships: []
+        };
+        state.currentAdventure.characters.key_npcs.push(newNPC);
       }
     },
 
@@ -181,7 +202,90 @@ const customAdventureSlice = createSlice({
 
     removeNPC: (state, action: PayloadAction<number>) => {
       if (state.currentAdventure) {
-        state.currentAdventure.characters.key_npcs.splice(action.payload, 1);
+        const removedNPC = state.currentAdventure.characters.key_npcs[action.payload];
+        if (removedNPC) {
+          // Remove NPC
+          state.currentAdventure.characters.key_npcs.splice(action.payload, 1);
+          
+          // Remove all relationships involving this NPC
+          state.currentAdventure.characters.key_npcs.forEach(npc => {
+            npc.relationships = npc.relationships.filter(
+              rel => rel.targetNpcId !== removedNPC.id
+            );
+          });
+        }
+      }
+    },
+
+    // NPC Relationship management
+    addNPCRelationship: (state, action: PayloadAction<{
+      sourceNpcId: string;
+      targetNpcId: string;
+      type: 'ally' | 'enemy' | 'neutral' | 'family' | 'romantic' | 'rival';
+      description: string;
+      strength: number;
+    }>) => {
+      if (state.currentAdventure) {
+        const { sourceNpcId, targetNpcId, type, description, strength } = action.payload;
+        const sourceNPC = state.currentAdventure.characters.key_npcs.find(npc => npc.id === sourceNpcId);
+        
+        if (sourceNPC) {
+          // Check if relationship already exists
+          const existingIndex = sourceNPC.relationships.findIndex(rel => rel.targetNpcId === targetNpcId);
+          
+          const newRelationship = {
+            targetNpcId,
+            type,
+            description,
+            strength
+          };
+          
+          if (existingIndex >= 0) {
+            // Update existing relationship
+            sourceNPC.relationships[existingIndex] = newRelationship;
+          } else {
+            // Add new relationship
+            sourceNPC.relationships.push(newRelationship);
+          }
+        }
+      }
+    },
+
+    removeNPCRelationship: (state, action: PayloadAction<{
+      sourceNpcId: string;
+      targetNpcId: string;
+    }>) => {
+      if (state.currentAdventure) {
+        const { sourceNpcId, targetNpcId } = action.payload;
+        const sourceNPC = state.currentAdventure.characters.key_npcs.find(npc => npc.id === sourceNpcId);
+        
+        if (sourceNPC) {
+          sourceNPC.relationships = sourceNPC.relationships.filter(
+            rel => rel.targetNpcId !== targetNpcId
+          );
+        }
+      }
+    },
+
+    updateNPCRelationship: (state, action: PayloadAction<{
+      sourceNpcId: string;
+      targetNpcId: string;
+      updates: Partial<{
+        type: 'ally' | 'enemy' | 'neutral' | 'family' | 'romantic' | 'rival';
+        description: string;
+        strength: number;
+      }>;
+    }>) => {
+      if (state.currentAdventure) {
+        const { sourceNpcId, targetNpcId, updates } = action.payload;
+        const sourceNPC = state.currentAdventure.characters.key_npcs.find(npc => npc.id === sourceNpcId);
+        
+        if (sourceNPC) {
+          const relationship = sourceNPC.relationships.find(rel => rel.targetNpcId === targetNpcId);
+          if (relationship) {
+            Object.assign(relationship, updates);
+          }
+        }
       }
     },
 
@@ -292,12 +396,16 @@ export const {
   updateAdventureField,
   updateBasicInfo,
   updateSetting,
+  updateTimePeriod,
   updateCharacters,
   updatePlot,
   updateStylePreferences,
   addNPC,
   updateNPC,
   removeNPC,
+  addNPCRelationship,
+  removeNPCRelationship,
+  updateNPCRelationship,
   addSecondaryGoal,
   removeSecondaryGoal,
   addPlotHook,
@@ -354,7 +462,10 @@ export const selectCanNavigateNext = (state: { customAdventure: CustomAdventureS
              currentAdventure.description.trim().length >= 10;
     case 1: // Setting
       return currentAdventure.setting.world_description.trim().length >= 50 &&
-             currentAdventure.setting.environment.trim().length > 0;
+             currentAdventure.setting.environment.trim().length > 0 &&
+             (typeof currentAdventure.setting.time_period === 'object' 
+               ? currentAdventure.setting.time_period.value.trim().length > 0
+               : currentAdventure.setting.time_period.trim().length > 0);
     case 2: // Characters
       return currentAdventure.characters.player_role.trim().length > 0;
     case 3: // Plot

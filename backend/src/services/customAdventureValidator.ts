@@ -140,12 +140,62 @@ export class CustomAdventureValidator {
         message: 'Time period is required',
         code: 'TIME_PERIOD_REQUIRED'
       });
-    } else if (!Object.values(TIME_PERIODS).includes(setting.time_period)) {
-      errors.push({
-        field: 'setting.time_period',
-        message: 'Invalid time period',
-        code: 'TIME_PERIOD_INVALID'
-      });
+    } else {
+      // Handle both old string format and new object format
+      if (typeof setting.time_period === 'string') {
+        // Legacy string format
+        if (!Object.values(TIME_PERIODS).includes(setting.time_period)) {
+          errors.push({
+            field: 'setting.time_period',
+            message: 'Invalid time period',
+            code: 'TIME_PERIOD_INVALID'
+          });
+        }
+      } else if (typeof setting.time_period === 'object') {
+        // New object format with custom support
+        if (!setting.time_period.type || !setting.time_period.value) {
+          errors.push({
+            field: 'setting.time_period',
+            message: 'Time period type and value are required',
+            code: 'TIME_PERIOD_INCOMPLETE'
+          });
+        } else if (setting.time_period.type === 'predefined' && !Object.values(TIME_PERIODS).includes(setting.time_period.value)) {
+          errors.push({
+            field: 'setting.time_period',
+            message: 'Invalid predefined time period',
+            code: 'TIME_PERIOD_INVALID'
+          });
+        } else if (setting.time_period.type === 'custom') {
+          // Validate custom time period
+          if (setting.time_period.value.trim().length < 3) {
+            errors.push({
+              field: 'setting.time_period.value',
+              message: 'Custom time period name must be at least 3 characters',
+              code: 'CUSTOM_TIME_PERIOD_TOO_SHORT'
+            });
+          }
+          if (setting.time_period.value.length > 100) {
+            errors.push({
+              field: 'setting.time_period.value',
+              message: 'Custom time period name must not exceed 100 characters',
+              code: 'CUSTOM_TIME_PERIOD_TOO_LONG'
+            });
+          }
+          if (setting.time_period.customDescription && setting.time_period.customDescription.length > 300) {
+            errors.push({
+              field: 'setting.time_period.customDescription',
+              message: 'Custom time period description must not exceed 300 characters',
+              code: 'CUSTOM_TIME_PERIOD_DESCRIPTION_TOO_LONG'
+            });
+          }
+        }
+      } else {
+        errors.push({
+          field: 'setting.time_period',
+          message: 'Time period must be a string or object',
+          code: 'TIME_PERIOD_INVALID_TYPE'
+        });
+      }
     }
 
     // Environment validation

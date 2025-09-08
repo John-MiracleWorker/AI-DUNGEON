@@ -7,7 +7,8 @@ import {
   Turn, 
   StyleConfig, 
   AdventureDetails,
-  CustomPromptContext 
+  CustomPromptContext,
+  ImageGenerationConfig
 } from '../../../shared/types';
 
 export interface NarrationResponse {
@@ -259,7 +260,7 @@ class OpenAIService {
     }
   }
 
-  async generateImage(prompt: string, style: string, adventureDetails?: AdventureDetails): Promise<string> {
+  async generateImage(prompt: string, style: string, adventureDetails?: AdventureDetails, config?: ImageGenerationConfig): Promise<string> {
     if (!this.apiKey) {
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
@@ -268,14 +269,24 @@ class OpenAIService {
 
     try {
       const enhancedPrompt = this.enhanceImagePrompt(prompt, style, adventureDetails);
+      
+      // Default to GPT-image-1 (newest model) with fallback to DALL-E 3
+      const imageConfig: ImageGenerationConfig = config || {
+        model: 'gpt-image-1',
+        size: '1024x1024',
+        quality: 'hd',
+        style: 'vivid',
+        enhancementLevel: 'detailed'
+      };
 
       const response = await axios.post(
         `${this.baseURL}/images/generations`,
         {
-          model: 'dall-e-3',
+          model: imageConfig.model,
           prompt: enhancedPrompt,
-          size: '1024x1024',
-          quality: 'standard',
+          size: imageConfig.size,
+          quality: imageConfig.quality,
+          style: imageConfig.style,
           n: 1,
         },
         {
@@ -289,11 +300,11 @@ class OpenAIService {
 
       const imageUrl = response.data.data[0]?.url;
       if (!imageUrl) {
-        throw new Error('No image URL returned from DALL-E');
+        throw new Error('No image URL returned from OpenAI');
       }
 
       const processingTime = Date.now() - startTime;
-      logger.info(`Image generated in ${processingTime}ms`);
+      logger.info(`Image generated with ${imageConfig.model} in ${processingTime}ms`);
 
       return imageUrl;
 
@@ -307,12 +318,122 @@ class OpenAIService {
 
       if (error.response?.status === 400) {
         logger.error('Image prompt rejected:', prompt);
+        // Try fallback with DALL-E 3 if GPT-image-1 fails
+        if (config?.model === 'gpt-image-1') {
+          logger.info('Falling back to DALL-E 3 for image generation');
+          const fallbackConfig = { ...config, model: 'dall-e-3' as const };
+          return this.generateImage(prompt, style, adventureDetails, fallbackConfig);
+        }
         // Return a placeholder or retry with safer prompt
         return this.generateFallbackImage(style);
       }
 
       throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
+  }
+
+  /**
+   * Enhanced image generation with full configuration support
+   */
+  async generateImageEnhanced(
+    prompt: string, 
+    config: ImageGenerationConfig,
+    adventureContext?: AdventureDetails
+  ): Promise<string> {
+    if (!this.apiKey) {
+      throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+
+    const startTime = Date.now();
+
+    try {
+      const enhancedPrompt = this.buildContextualPrompt(prompt, adventureContext);
+      
+      const response = await axios.post(
+        `${this.baseURL}/images/generations`,
+        {
+          model: config.model,
+          prompt: enhancedPrompt,
+          size: config.size,
+          quality: config.quality,
+          style: config.style,
+          n: 1,
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000,
+        }
+      );
+
+      const imageUrl = response.data.data[0]?.url;
+      if (!imageUrl) {
+        throw new Error(`No image URL returned from ${config.model}`);
+      }
+
+      const processingTime = Date.now() - startTime;
+      logger.info(`Enhanced image generated with ${config.model} in ${processingTime}ms`);
+
+      return imageUrl;
+
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      logger.error(`Enhanced image generation failed after ${processingTime}ms:`, error);
+
+      if (error.response?.status === 429) {
+        throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
+      }
+
+      if (error.response?.status === 400) {
+        logger.error('Enhanced image prompt rejected:', prompt);
+        // Try fallback model if current fails
+        if (config.model === 'gpt-image-1') {
+          logger.info('Falling back to DALL-E 3 for enhanced image generation');
+          const fallbackConfig = { ...config, model: 'dall-e-3' as const };
+          return this.generateImageEnhanced(prompt, fallbackConfig, adventureContext);
+        }
+        throw new Error('Image generation failed with all models');
+      }
+
+      throw new CustomError(ERROR_MESSAGES.IMAGE_GENERATION_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  /**
+   * Build contextual prompt with adventure details
+   */
+  private buildContextualPrompt(
+    basePrompt: string, 
+    context?: AdventureDetails
+  ): string {
+    if (!context) return basePrompt;
+    
+    let enhancedPrompt = basePrompt;
+    
+    // Add time period context
+    if (context.setting.time_period.type === 'custom') {
+      enhancedPrompt += `, set in ${context.setting.time_period.customDescription || context.setting.time_period.value}`;
+      if (context.setting.time_period.technologicalLevel) {
+        enhancedPrompt += `, ${context.setting.time_period.technologicalLevel} technology level`;
+      }
+      if (context.setting.time_period.culturalContext) {
+        enhancedPrompt += `, ${context.setting.time_period.culturalContext}`;
+      }
+    } else {
+      enhancedPrompt += `, ${context.setting.time_period.value} time period`;
+    }
+    
+    // Add style and atmosphere
+    enhancedPrompt += `, ${context.style_preferences.tone} atmosphere`;
+    
+    // Add environment context
+    if (context.setting.environment) {
+      enhancedPrompt += `, ${context.setting.environment}`;
+    }
+    
+    return enhancedPrompt;
   }
 
   async moderateContent(text: string): Promise<boolean> {
@@ -386,7 +507,11 @@ Do not include any text outside the JSON structure.`;
 ADVENTURE WORLD:
 ${setting.world_description}
 
-TIME PERIOD: ${setting.time_period}
+TIME PERIOD: ${typeof setting.time_period === 'object' ? 
+  (setting.time_period.type === 'custom' ? 
+    (setting.time_period.customDescription || setting.time_period.value) : 
+    setting.time_period.value
+  ) : setting.time_period}
 ENVIRONMENT: ${setting.environment}`;
 
     if (setting.special_rules) {
@@ -474,7 +599,11 @@ Do not include any text outside the JSON structure.`;
 
 ADVENTURE SETUP:
 - World: ${setting.world_description}
-- Time Period: ${setting.time_period}
+- Time Period: ${typeof setting.time_period === 'object' ? 
+    (setting.time_period.type === 'custom' ? 
+      (setting.time_period.customDescription || setting.time_period.value) : 
+      setting.time_period.value
+    ) : setting.time_period}
 - Environment: ${setting.environment}
 - Player Role: ${characters.player_role}
 - Main Objective: ${plot.main_objective}
@@ -608,9 +737,25 @@ Please respond with how the world reacts to this action. Be creative but logical
     if (adventureDetails) {
       const { setting, style_preferences } = adventureDetails;
       
-      // Incorporate setting details
-      if (setting.time_period !== 'custom') {
-        enhancedPrompt += `, ${setting.time_period} time period`;
+      // Incorporate setting details - handle both old string and new object format
+      const timePeriod = typeof setting.time_period === 'object' 
+        ? (setting.time_period.type === 'custom' 
+            ? (setting.time_period.customDescription || setting.time_period.value)
+            : setting.time_period.value)
+        : setting.time_period;
+      
+      if (timePeriod !== 'custom') {
+        enhancedPrompt += `, ${timePeriod} time period`;
+      }
+      
+      // Add technological and cultural context for custom time periods
+      if (typeof setting.time_period === 'object' && setting.time_period.type === 'custom') {
+        if (setting.time_period.technologicalLevel) {
+          enhancedPrompt += `, ${setting.time_period.technologicalLevel} technology`;
+        }
+        if (setting.time_period.culturalContext) {
+          enhancedPrompt += `, ${setting.time_period.culturalContext}`;
+        }
       }
       
       // Add environmental context

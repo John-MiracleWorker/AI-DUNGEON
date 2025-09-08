@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import {
   removeLocation,
   selectCurrentAdventure 
 } from '../../store/customAdventureSlice';
+import { TimePeriodSelection } from '../../../../shared/types';
 
 const TIME_PERIODS = [
   { value: 'prehistoric', label: 'Prehistoric Era' },
@@ -33,17 +35,72 @@ const TIME_PERIODS = [
 export const SettingStep: React.FC = () => {
   const dispatch = useAppDispatch();
   const currentAdventure = useAppSelector(selectCurrentAdventure);
+  const [isCustomTimePeriodModalVisible, setIsCustomTimePeriodModalVisible] = useState(false);
+  const [customTimePeriodForm, setCustomTimePeriodForm] = useState({
+    value: '',
+    customDescription: '',
+    era: '',
+    technologicalLevel: '',
+    culturalContext: ''
+  });
   
   const setting = currentAdventure?.setting || {
     world_description: '',
-    time_period: 'medieval',
+    time_period: {
+      type: 'predefined' as const,
+      value: 'medieval'
+    },
     environment: '',
     special_rules: '',
     locations: []
   };
 
+  // Ensure time_period is always an object
+  const timePeriod: TimePeriodSelection = typeof setting.time_period === 'string' 
+    ? { type: 'predefined', value: setting.time_period }
+    : setting.time_period;
+
   const handleFieldChange = (field: string, value: string) => {
     dispatch(updateSetting({ [field]: value }));
+  };
+
+  const handleTimePeriodChange = (value: string) => {
+    if (value === 'custom') {
+      // Open custom time period modal
+      setCustomTimePeriodForm({
+        value: '',
+        customDescription: '',
+        era: '',
+        technologicalLevel: '',
+        culturalContext: ''
+      });
+      setIsCustomTimePeriodModalVisible(true);
+    } else {
+      // Update with predefined time period
+      const newTimePeriod: TimePeriodSelection = {
+        type: 'predefined',
+        value: value
+      };
+      dispatch(updateSetting({ time_period: newTimePeriod }));
+    }
+  };
+
+  const handleSaveCustomTimePeriod = () => {
+    if (!customTimePeriodForm.value.trim()) {
+      return;
+    }
+
+    const newTimePeriod: TimePeriodSelection = {
+      type: 'custom',
+      value: customTimePeriodForm.value,
+      customDescription: customTimePeriodForm.customDescription || undefined,
+      era: customTimePeriodForm.era || undefined,
+      technologicalLevel: customTimePeriodForm.technologicalLevel || undefined,
+      culturalContext: customTimePeriodForm.culturalContext || undefined
+    };
+
+    dispatch(updateSetting({ time_period: newTimePeriod }));
+    setIsCustomTimePeriodModalVisible(false);
   };
 
   const handleAddLocation = (location: string) => {
@@ -56,6 +113,94 @@ export const SettingStep: React.FC = () => {
     dispatch(removeLocation(index));
   };
 
+  const CustomTimePeriodModal = () => (
+    <Modal
+      visible={isCustomTimePeriodModalVisible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setIsCustomTimePeriodModalVisible(false)}
+    >
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setIsCustomTimePeriodModalVisible(false)}>
+            <Ionicons name="close" size={24} color="#6b7280" />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Custom Time Period</Text>
+          <TouchableOpacity onPress={handleSaveCustomTimePeriod}>
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          <View style={styles.modalSection}>
+            <Text style={styles.modalLabel}>Period Name *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={customTimePeriodForm.value}
+              onChangeText={(text) => setCustomTimePeriodForm({...customTimePeriodForm, value: text})}
+              placeholder="e.g., Post-Digital Collapse Era, Steampunk Victorian"
+              placeholderTextColor="#6b7280"
+              maxLength={100}
+            />
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.modalLabel}>Detailed Description</Text>
+            <TextInput
+              style={styles.modalTextArea}
+              value={customTimePeriodForm.customDescription}
+              onChangeText={(text) => setCustomTimePeriodForm({...customTimePeriodForm, customDescription: text})}
+              placeholder="Year 2157, 50 years after the Great Network Shutdown..."
+              placeholderTextColor="#6b7280"
+              multiline
+              numberOfLines={4}
+              maxLength={300}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.modalLabel}>Era/Timeline</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={customTimePeriodForm.era}
+              onChangeText={(text) => setCustomTimePeriodForm({...customTimePeriodForm, era: text})}
+              placeholder="e.g., Late 21st Century, Ancient Rome Alternative"
+              placeholderTextColor="#6b7280"
+              maxLength={100}
+            />
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.modalLabel}>Technological Level</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={customTimePeriodForm.technologicalLevel}
+              onChangeText={(text) => setCustomTimePeriodForm({...customTimePeriodForm, technologicalLevel: text})}
+              placeholder="e.g., Pre-digital with salvaged tech, Magic-enhanced medieval"
+              placeholderTextColor="#6b7280"
+              maxLength={150}
+            />
+          </View>
+
+          <View style={styles.modalSection}>
+            <Text style={styles.modalLabel}>Cultural Context</Text>
+            <TextInput
+              style={styles.modalTextArea}
+              value={customTimePeriodForm.culturalContext}
+              onChangeText={(text) => setCustomTimePeriodForm({...customTimePeriodForm, culturalContext: text})}
+              placeholder="Neo-tribal societies with tech artifacts, Underground resistance movements..."
+              placeholderTextColor="#6b7280"
+              multiline
+              numberOfLines={3}
+              maxLength={200}
+              textAlignVertical="top"
+            />
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
   const LocationInput = () => {
     const [newLocation, setNewLocation] = React.useState('');
 
@@ -135,22 +280,76 @@ export const SettingStep: React.FC = () => {
           Select the historical or fictional time period for your adventure
         </Text>
         
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={setting.time_period}
-            onValueChange={(value) => handleFieldChange('time_period', value)}
-            style={styles.picker}
-            itemStyle={styles.pickerItem}
-          >
-            {TIME_PERIODS.map((period) => (
-              <Picker.Item
-                key={period.value}
-                label={period.label}
-                value={period.value}
-              />
-            ))}
-          </Picker>
-        </View>
+        {timePeriod.type === 'custom' ? (
+          <View style={styles.customTimePeriodContainer}>
+            <View style={styles.customTimePeriodInfo}>
+              <Text style={styles.customTimePeriodTitle}>{timePeriod.value}</Text>
+              {timePeriod.customDescription && (
+                <Text style={styles.customTimePeriodDescription}>
+                  {timePeriod.customDescription}
+                </Text>
+              )}
+              {timePeriod.technologicalLevel && (
+                <Text style={styles.customTimePeriodDetail}>
+                  Tech Level: {timePeriod.technologicalLevel}
+                </Text>
+              )}
+              {timePeriod.culturalContext && (
+                <Text style={styles.customTimePeriodDetail}>
+                  Culture: {timePeriod.culturalContext}
+                </Text>
+              )}
+            </View>
+            <View style={styles.customTimePeriodActions}>
+              <TouchableOpacity
+                style={styles.editCustomButton}
+                onPress={() => {
+                  setCustomTimePeriodForm({
+                    value: timePeriod.value,
+                    customDescription: timePeriod.customDescription || '',
+                    era: timePeriod.era || '',
+                    technologicalLevel: timePeriod.technologicalLevel || '',
+                    culturalContext: timePeriod.culturalContext || ''
+                  });
+                  setIsCustomTimePeriodModalVisible(true);
+                }}
+              >
+                <Ionicons name="pencil" size={16} color="#6b46c1" />
+                <Text style={styles.editCustomButtonText}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clearCustomButton}
+                onPress={() => {
+                  const newTimePeriod: TimePeriodSelection = {
+                    type: 'predefined',
+                    value: 'medieval'
+                  };
+                  dispatch(updateSetting({ time_period: newTimePeriod }));
+                }}
+              >
+                <Ionicons name="trash" size={16} color="#ef4444" />
+                <Text style={styles.clearCustomButtonText}>Use Predefined</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={timePeriod.value}
+              onValueChange={handleTimePeriodChange}
+              style={styles.picker}
+              itemStyle={styles.pickerItem}
+            >
+              {TIME_PERIODS.map((period) => (
+                <Picker.Item
+                  key={period.value}
+                  label={period.label}
+                  value={period.value}
+                />
+              ))}
+            </Picker>
+          </View>
+        )}
       </View>
 
       <View style={styles.section}>
@@ -246,6 +445,8 @@ export const SettingStep: React.FC = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      <CustomTimePeriodModal />
     </ScrollView>
   );
 };
@@ -364,6 +565,121 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#9ca3af',
     fontStyle: 'italic',
+  },
+  // Custom Time Period Styles
+  customTimePeriodContainer: {
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#404040',
+    borderRadius: 8,
+    padding: 16,
+  },
+  customTimePeriodInfo: {
+    marginBottom: 12,
+  },
+  customTimePeriodTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#f3f4f6',
+    marginBottom: 6,
+  },
+  customTimePeriodDescription: {
+    fontSize: 14,
+    color: '#d1d5db',
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  customTimePeriodDetail: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginBottom: 4,
+  },
+  customTimePeriodActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editCustomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#1e1b4b',
+    borderRadius: 6,
+    gap: 6,
+  },
+  editCustomButtonText: {
+    fontSize: 12,
+    color: '#6b46c1',
+    fontWeight: '500',
+  },
+  clearCustomButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#1f1f1f',
+    borderRadius: 6,
+    gap: 6,
+  },
+  clearCustomButtonText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#f3f4f6',
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSection: {
+    marginBottom: 24,
+  },
+  modalLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#f3f4f6',
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#404040',
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    color: '#f3f4f6',
+  },
+  modalTextArea: {
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#404040',
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    color: '#f3f4f6',
+    minHeight: 100,
   },
 });
 
