@@ -660,7 +660,7 @@ export const CharacterStep: React.FC = () => {
                   </View>
                   <View style={styles.npcMetaItem}>
                     <Text style={styles.npcMetaLabel}>Importance:</Text>
-                    <Text style={[styles.npcMetaValue, styles[`importance_${npc.importance || 'minor'}`]}>
+                    <Text style={[styles.npcMetaValue, styles[`importance_${npc.importance || 'minor'}`]]}>
                       {(npc.importance || 'minor').charAt(0).toUpperCase() + (npc.importance || 'minor').slice(1)}
                     </Text>
                   </View>
