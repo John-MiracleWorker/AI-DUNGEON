@@ -21,8 +21,8 @@ import {
   removeNPCRelationship,
   selectCurrentAdventure 
 } from '../../store/customAdventureSlice';
-import { NPCTemplate } from '../../../../shared/types';
-import { NPC_TEMPLATES, getNPCTemplatesByCategory, getAllCategories } from '../../../../shared/npcTemplates';
+import { NPCTemplate } from '@shared/types';
+import { NPC_TEMPLATES, getNPCTemplatesByCategory, getAllCategories } from '@shared/npcTemplates';
 
 interface NPCFormData {
   id?: string;
