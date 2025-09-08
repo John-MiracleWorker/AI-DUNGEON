@@ -5,7 +5,7 @@
   "scripts": {
     "start": "./launch-game.sh",
     "quick": "./quick-launch.sh",
-    "dev": "./launch-game.sh",
+    "dev": "scripts/start-dev.sh",
     "backend": "./launch-game.sh --backend-only",
     "frontend": "./launch-game.sh --frontend-only",
     "setup": "cd backend && npm install --legacy-peer-deps && cd ../frontend && npm install --legacy-peer-deps",
