@@ -453,7 +453,7 @@ export const selectCanNavigateNext = (state: { customAdventure: CustomAdventureS
   const { currentStep, maxSteps, currentAdventure } = state.customAdventure;
   
   if (!currentAdventure) return false;
-  if (currentStep >= maxSteps - 1) return false;
+  if (currentStep > maxSteps - 1) return false;
   
   // Check if current step is complete
   switch (currentStep) {

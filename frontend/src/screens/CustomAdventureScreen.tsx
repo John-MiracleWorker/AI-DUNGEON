@@ -311,11 +311,11 @@ export const CustomAdventureScreen: React.FC = () => {
           style={[
             styles.navButton,
             styles.primaryButton,
-            (!canGoNext && currentStep < WIZARD_STEPS.length - 1) && styles.disabledButton,
+            !canGoNext && styles.disabledButton,
             isCreatingGame && styles.loadingButton,
           ]}
           onPress={handleNext}
-          disabled={(!canGoNext && currentStep < WIZARD_STEPS.length - 1) || isCreatingGame}
+          disabled={!canGoNext || isCreatingGame}
         >
           {isCreatingGame ? (
             <>
