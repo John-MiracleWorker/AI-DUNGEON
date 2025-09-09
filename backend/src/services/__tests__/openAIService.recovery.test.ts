@@ -1,4 +1,5 @@
 import { openAIService } from '../openAIService';
+import { CustomAdventureValidator } from '../customAdventureValidator';
 import { WorldState } from '../../../../shared/types';
 
 // Define GameContext interface for testing
@@ -140,6 +141,33 @@ describe('OpenAI Service - Error Recovery', () => {
 
       const result = (openAIService as any).handleOpenAIError(error, 'test context', fallback);
       expect(result).toEqual(fallback);
+    });
+  });
+
+  describe('validateAdventureDetails recovery', () => {
+    it('should fill missing sections with defaults', () => {
+      const malformed: any = {
+        title: 'Broken Adventure',
+        description: 'Has issues',
+        setting: null,
+        characters: 'bad',
+        plot: 42
+      };
+
+      const result = (openAIService as any).validateAdventureDetails(malformed);
+      const validation = CustomAdventureValidator.validateAdventureDetails(result);
+      expect(validation.isValid).toBe(true);
+      expect(result.setting.world_description).toContain('mysterious realm');
+      expect(result.characters.player_role).toBe('Adventurer');
+      expect(result.plot.main_objective).toBe('Explore and discover');
+    });
+
+    it('should return full defaults when structure is invalid', () => {
+      const result = (openAIService as any).validateAdventureDetails(undefined);
+      const validation = CustomAdventureValidator.validateAdventureDetails(result);
+      expect(validation.isValid).toBe(true);
+      expect(result.title).toBe('Default Adventure');
+      expect(result.plot.victory_conditions).toBe('Complete your journey');
     });
   });
 });

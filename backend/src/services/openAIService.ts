@@ -45,6 +45,40 @@ export interface GameContext {
   };
 }
 
+const DEFAULT_ADVENTURE_SETTING: AdventureDetails['setting'] = {
+  world_description:
+    'A mysterious realm filled with ancient ruins and untold magical secrets, challenging every brave explorer who enters',
+  time_period: { type: 'predefined', value: 'medieval' },
+  environment: 'Unknown territory'
+};
+
+const DEFAULT_ADVENTURE_CHARACTERS: AdventureDetails['characters'] = {
+  player_role: 'Adventurer',
+  key_npcs: []
+};
+
+const DEFAULT_ADVENTURE_PLOT: AdventureDetails['plot'] = {
+  main_objective: 'Explore and discover',
+  secondary_goals: [],
+  plot_hooks: [],
+  victory_conditions: 'Complete your journey'
+};
+
+const DEFAULT_STYLE_PREFERENCES: AdventureDetails['style_preferences'] = {
+  tone: 'serious',
+  complexity: 'moderate',
+  pacing: 'moderate'
+};
+
+const DEFAULT_ADVENTURE_DETAILS: AdventureDetails = {
+  title: 'Default Adventure',
+  description: 'A default adventure generated due to an error',
+  setting: DEFAULT_ADVENTURE_SETTING,
+  characters: DEFAULT_ADVENTURE_CHARACTERS,
+  plot: DEFAULT_ADVENTURE_PLOT,
+  style_preferences: DEFAULT_STYLE_PREFERENCES
+};
+
 class OpenAIService {
   private openai: OpenAI;
   private styleConfig: StyleConfig;
@@ -270,31 +304,7 @@ class OpenAIService {
    */
   async generateAdventureFromPrompt(prompt: string): Promise<AdventureDetails> {
     const startTime = Date.now();
-    const fallbackAdventure: AdventureDetails = {
-      title: 'Default Adventure',
-      description: 'A default adventure generated due to an error',
-      setting: {
-        world_description:
-          'A mysterious realm filled with ancient ruins and untold magical secrets, challenging every brave explorer who enters',
-        time_period: { type: 'predefined', value: 'medieval' },
-        environment: 'Unknown territory'
-      },
-      characters: {
-        player_role: 'Adventurer',
-        key_npcs: []
-      },
-      plot: {
-        main_objective: 'Explore and discover',
-        secondary_goals: [],
-        plot_hooks: [],
-        victory_conditions: 'Complete your journey'
-      },
-      style_preferences: {
-        tone: 'serious',
-        complexity: 'moderate',
-        pacing: 'moderate'
-      }
-    };
+    const fallbackAdventure: AdventureDetails = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_DETAILS));
 
     try {
       if (!this.openai.apiKey) {
@@ -1026,21 +1036,42 @@ Please respond with how the world reacts to this action. Be creative but logical
    * Validate adventure details structure
    */
   private validateAdventureDetails(details: any): AdventureDetails {
-    // Validate required top-level fields
+    const defaultDetails = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_DETAILS));
+
     if (!details || typeof details !== 'object') {
-      throw new Error('Invalid adventure details structure');
+      return defaultDetails;
     }
 
-    const validatedDetails: AdventureDetails = {
-      title: typeof details.title === 'string' ? details.title : 'Untitled Adventure',
-      description: typeof details.description === 'string' ? details.description : '',
-      setting: this.validateAdventureSetting(details.setting),
-      characters: this.validateAdventureCharacters(details.characters),
-      plot: this.validateAdventurePlot(details.plot),
+    let setting: AdventureDetails['setting'];
+    let characters: AdventureDetails['characters'];
+    let plot: AdventureDetails['plot'];
+
+    try {
+      setting = this.validateAdventureSetting(details.setting);
+    } catch (e) {
+      setting = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_SETTING));
+    }
+
+    try {
+      characters = this.validateAdventureCharacters(details.characters);
+    } catch (e) {
+      characters = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_CHARACTERS));
+    }
+
+    try {
+      plot = this.validateAdventurePlot(details.plot);
+    } catch (e) {
+      plot = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_PLOT));
+    }
+
+    return {
+      title: typeof details.title === 'string' ? details.title : defaultDetails.title,
+      description: typeof details.description === 'string' ? details.description : defaultDetails.description,
+      setting,
+      characters,
+      plot,
       style_preferences: this.validateStylePreferences(details.style_preferences)
     };
-
-    return validatedDetails;
   }
 
   /**
@@ -1117,7 +1148,7 @@ Please respond with how the world reacts to this action. Be creative but logical
    */
   private validateAdventureSetting(setting: any): AdventureDetails['setting'] {
     if (!setting || typeof setting !== 'object') {
-      throw new Error('Invalid adventure setting structure');
+      return JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_SETTING));
     }
 
     // Handle time period validation for both old string and new object format
@@ -1156,7 +1187,7 @@ Please respond with how the world reacts to this action. Be creative but logical
    */
   private validateAdventureCharacters(characters: any): AdventureDetails['characters'] {
     if (!characters || typeof characters !== 'object') {
-      throw new Error('Invalid adventure characters structure');
+      return JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_CHARACTERS));
     }
 
     const validatedKeyNpcs = Array.isArray(characters.key_npcs) 
@@ -1227,7 +1258,7 @@ Please respond with how the world reacts to this action. Be creative but logical
    */
   private validateAdventurePlot(plot: any): AdventureDetails['plot'] {
     if (!plot || typeof plot !== 'object') {
-      throw new Error('Invalid adventure plot structure');
+      return JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_PLOT));
     }
 
     return {
