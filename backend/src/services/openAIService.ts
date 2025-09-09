@@ -1326,18 +1326,38 @@ Please respond with how the world reacts to this action. Be creative but logical
   private extractAdventureDetailsFromRawResponse(rawResponse: string): AdventureDetails | null {
     try {
       // Try to extract JSON from markdown code blocks first
-      const jsonMatch = rawResponse.match(/```(?:json)?\s*({[\s\S]*?})\s*```/);
+      const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
         try {
-          const parsed = JSON.parse(jsonMatch[1]);
+          const parsed = JSON.parse(jsonMatch[1].trim());
           return this.validateAdventureDetails(parsed);
         } catch (e) {
-          // If JSON parsing fails, return null
           return null;
         }
       }
-      
-      // If no JSON found in code blocks, return null
+
+      // If no code block is found, attempt to parse the first balanced JSON object
+      const firstBrace = rawResponse.indexOf('{');
+      if (firstBrace !== -1) {
+        let depth = 0;
+        for (let i = firstBrace; i < rawResponse.length; i++) {
+          const char = rawResponse[i];
+          if (char === '{') depth++;
+          if (char === '}') {
+            depth--;
+            if (depth === 0) {
+              const jsonString = rawResponse.slice(firstBrace, i + 1);
+              try {
+                const parsed = JSON.parse(jsonString.trim());
+                return this.validateAdventureDetails(parsed);
+              } catch (e) {
+                return null;
+              }
+            }
+          }
+        }
+      }
+
       return null;
     } catch (error) {
       logger.warn('Failed to extract adventure details from raw response:', error);

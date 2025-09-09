@@ -91,20 +91,61 @@ describe('OpenAI Service - Error Recovery', () => {
   });
 
   describe('extractAdventureDetailsFromRawResponse', () => {
+    const adventureJson = {
+      title: 'Test Adventure',
+      description: 'A test adventure',
+      setting: {
+        world_description: 'Test world',
+        time_period: { type: 'predefined', value: 'medieval' },
+        environment: 'Test environment'
+      },
+      characters: {
+        player_role: 'Tester',
+        key_npcs: []
+      },
+      plot: {
+        main_objective: 'Test objective',
+        secondary_goals: [],
+        plot_hooks: [],
+        victory_conditions: 'Complete test'
+      },
+      style_preferences: {
+        tone: 'serious',
+        complexity: 'moderate',
+        pacing: 'moderate'
+      }
+    };
+
     it('should extract adventure details from markdown code blocks', () => {
-      const rawResponse = '``json\n{\n  "title": "Test Adventure",\n  "description": "A test adventure",\n  "setting": {\n    "world_description": "Test world",\n    "time_period": {"type": "predefined", "value": "medieval"},\n    "environment": "Test environment"\n  },\n  "characters": {\n    "player_role": "Tester",\n    "key_npcs": []\n  },\n  "plot": {\n    "main_objective": "Test objective",\n    "secondary_goals": [],\n    "plot_hooks": [],\n    "victory_conditions": "Complete test"\n  },\n  "style_preferences": {\n    "tone": "serious",\n    "complexity": "moderate",\n    "pacing": "moderate"\n  }\n}\n```';
-      
+      const rawResponse = `\u0060\u0060\u0060json\n${JSON.stringify(adventureJson, null, 2)}\n\u0060\u0060\u0060`;
+
       const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
-      
-      // The function should return null because it's not properly extracting the JSON
-      expect(result).toBeNull();
+
+      expect(result).not.toBeNull();
+      expect(result).toEqual(adventureJson);
+    });
+
+    it('should handle responses with extra text around code block', () => {
+      const rawResponse = `Here are your details:\n\u0060\u0060\u0060json\n${JSON.stringify(adventureJson, null, 2)}\n\u0060\u0060\u0060\nEnjoy!`;
+
+      const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
+
+      expect(result).toEqual(adventureJson);
+    });
+
+    it('should extract adventure details when code fences are missing', () => {
+      const rawResponse = `Intro text {"title":"Test Adventure","description":"A test adventure","setting":{"world_description":"Test world","time_period":{"type":"predefined","value":"medieval"},"environment":"Test environment"},"characters":{"player_role":"Tester","key_npcs":[]},"plot":{"main_objective":"Test objective","secondary_goals":[],"plot_hooks":[],"victory_conditions":"Complete test"},"style_preferences":{"tone":"serious","complexity":"moderate","pacing":"moderate"}} Outro text`;
+
+      const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
+
+      expect(result).toEqual(adventureJson);
     });
 
     it('should return null when no JSON is found', () => {
       const rawResponse = 'This is just plain text with no JSON structure.';
-      
+
       const result = (openAIService as any).extractAdventureDetailsFromRawResponse(rawResponse);
-      
+
       expect(result).toBeNull();
     });
   });
