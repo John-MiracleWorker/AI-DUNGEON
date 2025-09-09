@@ -309,13 +309,19 @@ class OpenAIService {
         { role: 'user', content: userPrompt }
       ];
 
-      const response = await this.openai.chat.completions.create({
+      const requestOptions: any = {
         model: 'gpt-4',
         messages: messages as any,
         temperature: 0.8,
         max_tokens: 1000,
-        response_format: { type: 'json_object' }
-      });
+      };
+
+      // Only include the JSON response format parameter for models that support it
+      if (process.env.OPENAI_JSON_RESPONSE === 'true') {
+        requestOptions.response_format = { type: 'json_object' };
+      }
+
+      const response = await this.openai.chat.completions.create(requestOptions);
 
       const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
