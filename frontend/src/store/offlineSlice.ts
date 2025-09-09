@@ -69,7 +69,7 @@ const offlineSlice = createSlice({
     queueAction: (state, action: PayloadAction<Omit<PendingAction, 'id' | 'timestamp' | 'retryCount'>>) => {
       const newAction: PendingAction = {
         ...action.payload,
-        id: `action_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `action_${Date.now()}_${crypto.randomUUID().replace(/-/g, '')}`,
         timestamp: Date.now(),
         retryCount: 0,
       };

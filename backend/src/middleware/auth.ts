@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { CustomError } from './errorHandler';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../../../shared/constants';
 import { logger } from '../utils/logger';
@@ -63,7 +64,7 @@ export const authMiddleware = async (
 };
 
 export const generateAnonymousToken = (): string => {
-  return 'anon_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return 'anon_' + Date.now().toString(36) + randomUUID().replace(/-/g, '');
 };
 
 export const generateJWTToken = (userId: string, isAnonymous: boolean = false): string => {
