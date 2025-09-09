@@ -134,7 +134,11 @@ export class ImageEnhancementService {
   private enforceCacheLimit(): void {
     while (this.imageCache.size > this.MAX_CACHE_SIZE) {
       const oldestKey = this.imageCache.keys().next().value;
-      this.imageCache.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this.imageCache.delete(oldestKey);
+      } else {
+        break;
+      }
     }
   }
 
