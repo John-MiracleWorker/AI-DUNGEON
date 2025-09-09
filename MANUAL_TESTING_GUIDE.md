@@ -8,6 +8,7 @@ This guide provides instructions for manually testing the fixes implemented for 
 2. Ensure MongoDB and Redis are running (via Docker or locally)
 3. Ensure the frontend is properly configured with the correct API URL
 4. Make sure you have a valid OpenAI API key configured in the backend
+   - If the key is missing or the service is unavailable, prompt adventures will fall back to a generic scenario
 
 ## Test Scenarios
 

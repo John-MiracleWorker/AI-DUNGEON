@@ -80,7 +80,7 @@ class OpenAIService {
   /**
    * Standardized error handling for OpenAI API calls
    */
-  private handleOpenAIError(error: any, context: string, fallbackResponse?: any): never {
+  private handleOpenAIError(error: any, context: string, fallbackResponse?: any): any {
     logger.error(`OpenAI API error in ${context}:`, error);
 
     if (error.status === 429) {
@@ -98,7 +98,7 @@ class OpenAIService {
 
     // If we have a fallback response, return it instead of throwing an error
     if (fallbackResponse !== undefined) {
-      throw new CustomError(JSON.stringify(fallbackResponse), HTTP_STATUS.INTERNAL_SERVER_ERROR);
+      return fallbackResponse;
     }
 
     throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -269,13 +269,37 @@ class OpenAIService {
    * Generate adventure from prompt with standardized error handling
    */
   async generateAdventureFromPrompt(prompt: string): Promise<AdventureDetails> {
-    if (!this.openai.apiKey) {
-      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
-    }
-
     const startTime = Date.now();
+    const fallbackAdventure: AdventureDetails = {
+      title: 'Default Adventure',
+      description: 'A default adventure generated due to an error',
+      setting: {
+        world_description: 'A mysterious realm',
+        time_period: { type: 'predefined', value: 'medieval' },
+        environment: 'Unknown territory'
+      },
+      characters: {
+        player_role: 'Adventurer',
+        key_npcs: []
+      },
+      plot: {
+        main_objective: 'Explore and discover',
+        secondary_goals: [],
+        plot_hooks: [],
+        victory_conditions: 'Complete your journey'
+      },
+      style_preferences: {
+        tone: 'serious',
+        complexity: 'moderate',
+        pacing: 'moderate'
+      }
+    };
 
     try {
+      if (!this.openai.apiKey) {
+        return this.handleOpenAIError({ message: 'Missing OpenAI API key' }, 'generateAdventureFromPrompt', fallbackAdventure);
+      }
+
       const systemPrompt = 'You are an AI that creates detailed JSON for text adventures. Return a JSON matching the AdventureDetails interface.';
       const userPrompt = `Prompt: ${prompt}\nReturn only valid JSON`;
 
@@ -318,30 +342,7 @@ class OpenAIService {
       return adventureDetails;
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      return this.handleOpenAIError(error, 'generateAdventureFromPrompt', {
-        title: 'Default Adventure',
-        description: 'A default adventure generated due to an error',
-        setting: {
-          world_description: 'A mysterious realm',
-          time_period: { type: 'predefined', value: 'medieval' },
-          environment: 'Unknown territory'
-        },
-        characters: {
-          player_role: 'Adventurer',
-          key_npcs: []
-        },
-        plot: {
-          main_objective: 'Explore and discover',
-          secondary_goals: [],
-          plot_hooks: [],
-          victory_conditions: 'Complete your journey'
-        },
-        style_preferences: {
-          tone: 'serious',
-          complexity: 'moderate',
-          pacing: 'moderate'
-        }
-      });
+      return this.handleOpenAIError(error, 'generateAdventureFromPrompt', fallbackAdventure);
     }
   }
 
