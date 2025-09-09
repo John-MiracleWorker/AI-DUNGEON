@@ -274,7 +274,8 @@ class OpenAIService {
       title: 'Default Adventure',
       description: 'A default adventure generated due to an error',
       setting: {
-        world_description: 'A mysterious realm',
+        world_description:
+          'A mysterious realm filled with ancient ruins and untold magical secrets, challenging every brave explorer who enters',
         time_period: { type: 'predefined', value: 'medieval' },
         environment: 'Unknown territory'
       },
