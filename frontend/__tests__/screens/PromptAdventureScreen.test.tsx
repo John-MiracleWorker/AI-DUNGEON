@@ -89,7 +89,8 @@ describe('PromptAdventureScreen', () => {
   it('should show loading state when creating adventure', async () => {
     // Mock the API to simulate loading
     const mockMutation = jest.fn();
-    jest.spyOn(gameApi, 'endpoints').mockReturnValue({
+    const endpointsSpy = jest.spyOn(gameApi, 'endpoints');
+    endpointsSpy.mockReturnValue({
       createPromptGame: {
         useMutation: () => [mockMutation, { isLoading: true }]
       }
@@ -111,10 +112,72 @@ describe('PromptAdventureScreen', () => {
     await waitFor(() => {
       expect(getByText('Creating...')).toBeTruthy();
     });
+
+    endpointsSpy.mockRestore();
+  });
+  it('should create anonymous session and start adventure when not logged in', async () => {
+    mockState.auth.isAuthenticated = false;
+
+    const mockAnon = jest.fn().mockResolvedValue({
+      data: { token: 'anon-token', user: { id: 'anon' } },
+    });
+    const mockPrompt = jest.fn().mockResolvedValue({
+      data: {
+        session_id: 'test-session-id',
+        world_state: {},
+        prologue: { narration: 'Test', image_url: '', quick_actions: [] },
+      },
+    });
+
+    const endpointsSpy = jest.spyOn(gameApi, 'endpoints');
+    endpointsSpy.mockReturnValue({
+      createPromptGame: {
+        useMutation: () => [mockPrompt, { isLoading: false }],
+      },
+      createAnonymousSession: {
+        useMutation: () => [mockAnon, { isLoading: false }],
+      },
+    } as any);
+
+    const { getByText, getByPlaceholderText } = render(
+      <Provider store={store}>
+        <PromptAdventureScreen />
+      </Provider>
+    );
+
+    const promptInput = getByPlaceholderText('Describe your adventure...');
+    fireEvent.changeText(promptInput, 'Create a fantasy adventure');
+
+    const startButton = getByText('Start Adventure');
+    fireEvent.press(startButton);
+
+    await waitFor(() => {
+      expect(mockAnon).toHaveBeenCalled();
+      expect(mockPrompt).toHaveBeenCalled();
+      expect(mockNavigate).toHaveBeenCalledWith('Game', {
+        sessionId: 'test-session-id',
+      });
+      expect(Alert.alert).not.toHaveBeenCalled();
+    });
+
+    endpointsSpy.mockRestore();
   });
 
-  it('should show authentication alert when not logged in', async () => {
+  it('should show authentication alert if anonymous session creation fails', async () => {
     mockState.auth.isAuthenticated = false;
+
+    const mockAnon = jest.fn().mockRejectedValue(new Error('fail'));
+    const mockPrompt = jest.fn();
+
+    const endpointsSpy = jest.spyOn(gameApi, 'endpoints');
+    endpointsSpy.mockReturnValue({
+      createPromptGame: {
+        useMutation: () => [mockPrompt, { isLoading: false }],
+      },
+      createAnonymousSession: {
+        useMutation: () => [mockAnon, { isLoading: false }],
+      },
+    } as any);
 
     const { getByText, getByPlaceholderText } = render(
       <Provider store={store}>
@@ -133,6 +196,9 @@ describe('PromptAdventureScreen', () => {
         'Authentication Required',
         'You must be logged in to create an adventure. Please log in and try again.'
       );
+      expect(mockPrompt).not.toHaveBeenCalled();
     });
+
+    endpointsSpy.mockRestore();
   });
 });

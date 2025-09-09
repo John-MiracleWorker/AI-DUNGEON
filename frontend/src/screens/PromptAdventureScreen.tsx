@@ -12,9 +12,12 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { useAppDispatch, useAppSelector } from '../utils/hooks';
-import { useCreatePromptGameMutation } from '../services/gameApi';
+import {
+  useCreatePromptGameMutation,
+  useCreateAnonymousSessionMutation,
+} from '../services/gameApi';
 import { setCurrentSession } from '../store/gameSlice';
-import { logout } from '../store/authSlice';
+import { logout, setCredentials } from '../store/authSlice';
 
 export const PromptAdventureScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -26,23 +29,32 @@ export const PromptAdventureScreen: React.FC = () => {
   const [stylePreference, setStylePreference] = useState<'detailed' | 'concise'>('detailed');
   const [imageStyle, setImageStyle] = useState<'fantasy_art' | 'comic_book' | 'painterly'>('fantasy_art');
   const [createPromptGame, { isLoading }] = useCreatePromptGameMutation();
+  const [createAnonymousSession] = useCreateAnonymousSessionMutation();
 
   const handleCreate = async () => {
-    // Check authentication state
-    if (!isAuthenticated) {
-      Alert.alert(
-        'Authentication Required',
-        'You must be logged in to create an adventure. Please log in and try again.'
-      );
-      return;
-    }
-
     if (!prompt.trim()) {
       Alert.alert('Prompt Required', 'Please enter a prompt to continue.');
       return;
     }
 
     try {
+      // Create an anonymous session if the user is not authenticated
+      if (!isAuthenticated) {
+        try {
+          const anonResult = await createAnonymousSession().unwrap();
+          dispatch(
+            setCredentials({ token: anonResult.token, user: anonResult.user })
+          );
+        } catch (sessionError) {
+          console.error('Failed to create anonymous session:', sessionError);
+          Alert.alert(
+            'Authentication Required',
+            'You must be logged in to create an adventure. Please log in and try again.'
+          );
+          return;
+        }
+      }
+
       const result = await createPromptGame({
         prompt,
         style_preference: stylePreference,
