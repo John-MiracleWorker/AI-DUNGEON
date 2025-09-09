@@ -314,12 +314,9 @@ class OpenAIService {
         messages: messages as any,
         temperature: 0.8,
         max_tokens: 1000,
+        // Force JSON responses to prevent fallback to default adventure details
+        response_format: { type: 'json_object' }
       };
-
-      // Only include the JSON response format parameter for models that support it
-      if (process.env.OPENAI_JSON_RESPONSE === 'true') {
-        requestOptions.response_format = { type: 'json_object' };
-      }
 
       const response = await this.openai.chat.completions.create(requestOptions);
 
@@ -386,9 +383,11 @@ class OpenAIService {
         n: 1,
         size: imageConfig.size as any
       };
-      if (['gpt-image-1', 'dall-e-3'].includes(imageConfig.model)) {
+      if (imageConfig.model === 'dall-e-3') {
         params.quality = imageConfig.quality;
         params.style = imageConfig.style;
+      } else if (imageConfig.model === 'gpt-image-1') {
+        params.quality = imageConfig.quality;
       }
 
       const response = await this.openai.images.generate(params);
@@ -460,9 +459,11 @@ class OpenAIService {
       n: 1,
       size: config.size as any
     };
-    if (['gpt-image-1', 'dall-e-3'].includes(config.model)) {
+    if (config.model === 'dall-e-3') {
       params.quality = config.quality;
       params.style = config.style;
+    } else if (config.model === 'gpt-image-1') {
+      params.quality = config.quality;
     }
 
     try {
