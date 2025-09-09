@@ -6,12 +6,13 @@ import 'express-async-errors';
 import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import { Server } from 'http';
 
 // Load environment variables FIRST
 dotenv.config();
 
-import { connectDatabase } from './config/database';
-import { connectRedis } from './config/redis';
+import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectRedis, disconnectRedis } from './config/redis';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { authMiddleware } from './middleware/auth';
@@ -109,13 +110,15 @@ app.use('*', (req, res) => {
   });
 });
 
+let server: Server | null = null;
+
 async function startServer() {
   try {
     // Connect to databases
     await connectDatabase();
     await connectRedis();
 
-    const server = app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);
       logger.info(`📚 API Documentation available at http://localhost:${PORT}/api/docs`);
       logger.info(`🔍 Health check available at http://localhost:${PORT}/health`);
@@ -134,13 +137,27 @@ async function startServer() {
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+async function shutdown() {
+  try {
+    if (server) {
+      await new Promise<void>((resolve) => server!.close(() => resolve()));
+    }
+    await disconnectDatabase();
+    await disconnectRedis();
+  } catch (err) {
+    logger.error('Error during shutdown:', err);
+  }
+}
+
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
+  await shutdown();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
+  await shutdown();
   process.exit(0);
 });
 
