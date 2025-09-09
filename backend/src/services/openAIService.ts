@@ -114,8 +114,21 @@ class OpenAIService {
   /**
    * Standardized error handling for OpenAI API calls
    */
-  private handleOpenAIError(error: any, context: string, fallbackResponse?: any): any {
-    logger.error(`OpenAI API error in ${context}:`, error);
+  private handleOpenAIError(
+    error: any,
+    context: string,
+    fallbackResponse?: any,
+    metadata?: { prompt?: string; requestId?: string }
+  ): any {
+    const promptExcerpt = metadata?.prompt
+      ? `${metadata.prompt.substring(0, 100)}${metadata.prompt.length > 100 ? '...' : ''}`
+      : undefined;
+    const requestId = metadata?.requestId || error?.response?.headers?.['x-request-id'];
+    logger.error(`OpenAI API error in ${context}:`, {
+      error,
+      requestId,
+      promptExcerpt
+    });
 
     if (error.status === 429) {
       throw new CustomError(ERROR_MESSAGES.RATE_LIMIT_EXCEEDED, HTTP_STATUS.TOO_MANY_REQUESTS);
@@ -130,9 +143,10 @@ class OpenAIService {
       throw new CustomError(`Invalid request to OpenAI API: ${error.message}`, HTTP_STATUS.BAD_REQUEST);
     }
 
-    // If we have a fallback response, return it instead of throwing an error
+    // If we have a fallback response, return it with warning instead of throwing an error
     if (fallbackResponse !== undefined) {
-      return fallbackResponse;
+      logger.warn(`Using fallback response for ${context}`);
+      return { ...fallbackResponse, fallbackUsed: true };
     }
 
     throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -306,9 +320,15 @@ class OpenAIService {
     const startTime = Date.now();
     const fallbackAdventure: AdventureDetails = JSON.parse(JSON.stringify(DEFAULT_ADVENTURE_DETAILS));
 
+    let requestId: string | undefined;
     try {
       if (!this.openai.apiKey) {
-        return this.handleOpenAIError({ message: 'Missing OpenAI API key' }, 'generateAdventureFromPrompt', fallbackAdventure);
+        return this.handleOpenAIError(
+          { message: 'Missing OpenAI API key' },
+          'generateAdventureFromPrompt',
+          fallbackAdventure,
+          { prompt }
+        );
       }
 
       const systemPrompt = 'You are an AI that creates detailed JSON for text adventures. Return a JSON matching the AdventureDetails interface.';
@@ -329,7 +349,7 @@ class OpenAIService {
       };
 
       const response = await this.openai.chat.completions.create(requestOptions);
-
+      requestId = (response as any)?.id;
       const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
         throw new CustomError('No adventure details returned from OpenAI', HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -341,13 +361,22 @@ class OpenAIService {
         // Validate adventure details with comprehensive validation
         adventureDetails = this.validateAdventureDetails(adventureDetails);
       } catch (err) {
-        logger.error('Failed to parse adventure details:', aiResponse);
+        logger.error('Failed to parse adventure details', {
+          requestId,
+          promptExcerpt: `${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}`,
+          rawResponse: aiResponse
+        });
         // Try intelligent recovery for adventure details
         const recoveredDetails = this.extractAdventureDetailsFromRawResponse(aiResponse);
         if (recoveredDetails) {
           adventureDetails = recoveredDetails;
         } else {
-          throw new CustomError('Invalid adventure details format from AI service', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+          const parseError = new CustomError(
+            'Invalid adventure details format from AI service',
+            HTTP_STATUS.INTERNAL_SERVER_ERROR
+          );
+          (parseError as any).requestId = requestId;
+          throw parseError;
         }
       }
 
@@ -356,8 +385,12 @@ class OpenAIService {
 
       return adventureDetails;
     } catch (error: any) {
-      const processingTime = Date.now() - startTime;
-      return this.handleOpenAIError(error, 'generateAdventureFromPrompt', fallbackAdventure);
+      const resolvedRequestId =
+        (error as any).requestId || error?.response?.headers?.['x-request-id'] || error?.id;
+      return this.handleOpenAIError(error, 'generateAdventureFromPrompt', fallbackAdventure, {
+        prompt,
+        requestId: resolvedRequestId
+      });
     }
   }
 
