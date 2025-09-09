@@ -137,10 +137,9 @@ describe('OpenAI Service - Error Recovery', () => {
     it('should handle generic errors with fallback', () => {
       const error = { status: 500, message: 'Internal server error' };
       const fallback = { message: 'Fallback response' };
-      
-      expect(() => {
-        (openAIService as any).handleOpenAIError(error, 'test context', fallback);
-      }).toThrow('{"message":"Fallback response"}');
+
+      const result = (openAIService as any).handleOpenAIError(error, 'test context', fallback);
+      expect(result).toEqual(fallback);
     });
   });
 });

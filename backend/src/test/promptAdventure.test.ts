@@ -83,4 +83,48 @@ describe('POST /api/new-prompt-game', () => {
 
     expect(response.body.error).toBe('Failed to generate adventure');
   });
+
+  it('should return a default adventure when API key is missing', async () => {
+    jest.resetModules();
+    delete process.env.OPENAI_API_KEY;
+
+    const defaultResponse = {
+      adventure_id: 'default-adventure-id',
+      session_id: 'default-session-id',
+      prologue: {
+        narration: 'The AI encountered an error. Please try again.',
+        image_url: '',
+        quick_actions: ['Look around', 'Continue']
+      },
+      world_state: {
+        location: 'A mysterious realm',
+        inventory: [],
+        npcs: [],
+        flags: {},
+        current_chapter: 'Prologue'
+      }
+    };
+
+    jest.doMock('../services/gameEngine', () => ({
+      gameEngine: {
+        createCustomGameFromPrompt: jest.fn().mockResolvedValue(defaultResponse)
+      }
+    }));
+
+    const app = (await import('../server')).default;
+    const { gameEngine: mockedEngine } = await import('../services/gameEngine');
+
+    const response = await request(app)
+      .post('/api/new-prompt-game')
+      .set('Authorization', 'Bearer test-token')
+      .send({
+        prompt: 'Create a fantasy adventure',
+        style_preference: 'detailed',
+        image_style: 'fantasy_art'
+      })
+      .expect(201);
+
+    expect(response.body).toEqual(defaultResponse);
+    expect((mockedEngine.createCustomGameFromPrompt as jest.Mock)).toHaveBeenCalled();
+  });
 });

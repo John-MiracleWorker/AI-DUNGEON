@@ -10,6 +10,7 @@ A web and mobile-friendly text adventure application that combines AI-driven sto
 - Persistent world state and game sessions
 - Chat-style interface with save/load functionality
 - Cross-platform support (web + mobile)
+- Graceful fallback to a generic adventure if the AI service is unavailable
 
 ## Technology Stack
 
