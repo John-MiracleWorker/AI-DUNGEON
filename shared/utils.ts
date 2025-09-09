@@ -60,11 +60,11 @@ export function sanitizeInput(input: string): string {
 }
 
 export function generateSessionId(): string {
-  return 'session_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return 'session_' + Date.now().toString(36) + crypto.randomUUID().replace(/-/g, '');
 }
 
 export function generateTurnId(): string {
-  return 'turn_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+  return 'turn_' + Date.now().toString(36) + crypto.randomUUID().replace(/-/g, '');
 }
 
 export function formatTimestamp(date: Date): string {
