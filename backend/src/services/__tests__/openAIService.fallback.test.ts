@@ -11,4 +11,22 @@ describe('OpenAI Service - Fallback Adventure Generation', () => {
       VALIDATION_RULES.MIN_WORLD_DESCRIPTION_LENGTH
     );
   });
+
+  it('sets a warning flag when parsing error triggers fallback', async () => {
+    const originalKey = (openAIService as any).openai.apiKey;
+    (openAIService as any).openai.apiKey = 'test-key';
+    jest
+      .spyOn((openAIService as any).openai.chat.completions, 'create')
+      .mockResolvedValue({
+        id: 'req-123',
+        choices: [{ message: { content: 'not json' } }]
+      } as any);
+
+    const adventure = await openAIService.generateAdventureFromPrompt('bad json');
+
+    expect(adventure.fallbackUsed).toBe(true);
+
+    (openAIService as any).openai.chat.completions.create.mockRestore();
+    (openAIService as any).openai.apiKey = originalKey;
+  });
 });

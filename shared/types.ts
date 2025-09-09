@@ -215,6 +215,7 @@ export interface AdventureDetails {
   characters: AdventureCharacters;
   plot: AdventurePlot;
   style_preferences: StylePreferences;
+  fallbackUsed?: boolean;
 }
 
 export interface TimePeriodSelection {
