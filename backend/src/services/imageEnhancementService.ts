@@ -3,6 +3,8 @@ import { ImageGenerationConfig, ImageGenerationError } from '../../../shared/typ
 
 export class ImageEnhancementService {
   private imageCache = new Map<string, { url: string; timestamp: number }>();
+  private readonly MAX_CACHE_SIZE = 100;
+  private readonly CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
   /**
    * Enhanced image generation with multi-stage fallback system
@@ -91,15 +93,17 @@ export class ImageEnhancementService {
    * Get cached or generate image with caching mechanism
    */
   async getCachedOrGenerateImage(
-    prompt: string, 
+    prompt: string,
     style: string,
     generateImage: (prompt: string, style: string, config?: ImageGenerationConfig) => Promise<string>
   ): Promise<{ url: string; error?: ImageGenerationError }> {
+    this.cleanupCache();
     const cacheKey = `${prompt}_${style}`;
     const cached = this.imageCache.get(cacheKey);
-    
-    // Use cached image if less than 1 hour old
-    if (cached && Date.now() - cached.timestamp < 3600000) {
+
+    if (cached) {
+      this.imageCache.delete(cacheKey); // move to end for LRU
+      this.imageCache.set(cacheKey, cached);
       return { url: cached.url };
     }
     
@@ -107,13 +111,31 @@ export class ImageEnhancementService {
     
     // Cache successful results
     if (result.url && !result.url.includes('placeholder')) {
+      this.cleanupCache();
       this.imageCache.set(cacheKey, {
         url: result.url,
         timestamp: Date.now()
       });
+      this.enforceCacheLimit();
     }
     
     return result;
+  }
+
+  private cleanupCache(): void {
+    const now = Date.now();
+    for (const [key, value] of this.imageCache.entries()) {
+      if (now - value.timestamp > this.CACHE_TTL_MS) {
+        this.imageCache.delete(key);
+      }
+    }
+  }
+
+  private enforceCacheLimit(): void {
+    while (this.imageCache.size > this.MAX_CACHE_SIZE) {
+      const oldestKey = this.imageCache.keys().next().value;
+      this.imageCache.delete(oldestKey);
+    }
   }
 
   /**
