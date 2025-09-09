@@ -63,6 +63,7 @@ export const ERROR_MESSAGES = {
   RATE_LIMIT_EXCEEDED: 'Rate limit exceeded, please try again later',
   UNAUTHORIZED_ACCESS: 'Unauthorized access',
   INVALID_TOKEN: 'Invalid or expired token',
+  MISSING_TOKEN: 'Authentication token missing',
 } as const;
 
 export const VALIDATION_RULES = {

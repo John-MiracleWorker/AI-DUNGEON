@@ -33,7 +33,11 @@ export const authMiddleware = async (
       return next();
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    const token = authHeader.substring(7).trim(); // Remove 'Bearer ' prefix
+
+    if (!token) {
+      throw new CustomError(ERROR_MESSAGES.MISSING_TOKEN, HTTP_STATUS.UNAUTHORIZED);
+    }
     
     if (!process.env.JWT_SECRET) {
       throw new CustomError('JWT secret not configured', HTTP_STATUS.INTERNAL_SERVER_ERROR);
@@ -48,16 +52,17 @@ export const authMiddleware = async (
 
     next();
   } catch (error) {
-    logger.error('Authentication error:', error);
-    
-    if (error instanceof jwt.JsonWebTokenError) {
+    const context = `${req.method} ${req.originalUrl} from ${req.ip}`;
+    logger.error(`Authentication error at ${context}:`, error);
+
+    if (error instanceof CustomError) {
+      throw error;
+    }
+
+    if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
       throw new CustomError(ERROR_MESSAGES.INVALID_TOKEN, HTTP_STATUS.UNAUTHORIZED);
     }
-    
-    if (error instanceof jwt.TokenExpiredError) {
-      throw new CustomError(ERROR_MESSAGES.INVALID_TOKEN, HTTP_STATUS.UNAUTHORIZED);
-    }
-    
+
     throw error;
   }
 };
