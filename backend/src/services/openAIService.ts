@@ -132,7 +132,7 @@ class OpenAIService {
       ];
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: messages as any,
         temperature: 0.8,
         max_tokens: 800,
@@ -205,7 +205,7 @@ class OpenAIService {
       ];
 
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: messages as any,
         temperature: 0.9,
         max_tokens: 1000,
@@ -310,7 +310,7 @@ class OpenAIService {
       ];
 
       const requestOptions: any = {
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: messages as any,
         temperature: 0.8,
         max_tokens: 1000,
