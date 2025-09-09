@@ -314,6 +314,7 @@ class OpenAIService {
         messages: messages as any,
         temperature: 0.8,
         max_tokens: 1000,
+        response_format: { type: 'json_object' }
       });
 
       const aiResponse = response.choices[0]?.message?.content;
@@ -377,8 +378,7 @@ class OpenAIService {
         model: imageConfig.model,
         prompt: enhancedPrompt,
         n: 1,
-        size: imageConfig.size as any,
-        response_format: 'url'
+        size: imageConfig.size as any
       };
       if (['gpt-image-1', 'dall-e-3'].includes(imageConfig.model)) {
         params.quality = imageConfig.quality;
@@ -452,8 +452,7 @@ class OpenAIService {
       model: config.model,
       prompt: enhancedPrompt,
       n: 1,
-      size: config.size as any,
-      response_format: 'url'
+      size: config.size as any
     };
     if (['gpt-image-1', 'dall-e-3'].includes(config.model)) {
       params.quality = config.quality;
@@ -546,8 +545,7 @@ class OpenAIService {
         n: 1,
         size: config.size as any,
         quality: config.quality,
-        style: config.style,
-        response_format: 'url'
+        style: config.style
       });
 
       const imageUrl = response.data?.[0]?.url;
