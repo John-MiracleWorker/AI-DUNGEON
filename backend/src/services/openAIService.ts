@@ -629,7 +629,8 @@ class OpenAIService {
 
   async moderateContent(text: string): Promise<boolean> {
     if (!this.openai.apiKey) {
-      return true; // Allow content if moderation is unavailable
+      logger.error('OpenAI API key not configured for moderation');
+      return false;
     }
 
     try {
@@ -642,7 +643,7 @@ class OpenAIService {
 
     } catch (error) {
       logger.error('Content moderation failed:', error);
-      return true; // Allow content if moderation fails
+      throw new CustomError(ERROR_MESSAGES.AI_SERVICE_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR);
     }
   }
 
