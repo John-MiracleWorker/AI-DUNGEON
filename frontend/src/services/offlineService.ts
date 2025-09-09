@@ -1,21 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { store } from '../store';
-import { 
-  setOnlineStatus, 
-  queueAction, 
-  syncSuccess, 
-  syncFailure, 
+import {
+  setOnlineStatus,
+  queueAction,
+  syncSuccess,
+  syncFailure,
   cacheGame,
-  clearOldCachedGames 
+  clearOldCachedGames
 } from '../store/offlineSlice';
-import { useSyncOfflineActionsMutation } from './gameApi';
 import { PendingAction, CachedGame } from '../store/offlineSlice';
 import { GameSession } from '../types';
+import { gameApi } from './gameApi';
 
 class OfflineService {
-  private syncMutation: ReturnType<typeof useSyncOfflineActionsMutation>[0] | null = null;
   private isInitialized = false;
+  private netInfoUnsubscribe: (() => void) | null = null;
+  private cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
 
   async initialize() {
     if (this.isInitialized) return;
@@ -25,7 +26,7 @@ class OfflineService {
     
     // Set up network monitoring
     this.setupNetworkMonitoring();
-    
+
     // Set up periodic cleanup
     this.setupPeriodicCleanup();
     
@@ -69,7 +70,7 @@ class OfflineService {
   }
 
   private setupNetworkMonitoring() {
-    NetInfo.addEventListener(state => {
+    this.netInfoUnsubscribe = NetInfo.addEventListener(state => {
       const wasOffline = !store.getState().offline.isOnline;
       const isOnline = state.isConnected ?? false;
       
@@ -84,11 +85,23 @@ class OfflineService {
 
   private setupPeriodicCleanup() {
     // Clean up old cached games every hour
-    setInterval(() => {
+    this.cleanupIntervalId = setInterval(() => {
       const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
       store.dispatch(clearOldCachedGames(maxAge));
       this.persistCachedData();
     }, 60 * 60 * 1000); // 1 hour
+  }
+
+  dispose() {
+    this.netInfoUnsubscribe?.();
+    this.netInfoUnsubscribe = null;
+
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
+    }
+
+    this.isInitialized = false;
   }
 
   async queueOfflineAction(
@@ -123,23 +136,37 @@ class OfflineService {
     }
 
     try {
-      // This would need to be implemented with proper mutation hook
-      // For now, we'll simulate the sync process
-      console.log('Syncing queued actions:', state.queuedActions);
-      
-      // Simulate API call
-      const processedIds = state.queuedActions.map(action => action.id);
-      
-      store.dispatch(syncSuccess({ processedActionIds: processedIds }));
+      const result = await store
+        .dispatch(
+          gameApi.endpoints.syncOfflineActions.initiate(state.queuedActions)
+        )
+        .unwrap();
+
+      if (result.processed?.length) {
+        store.dispatch(
+          syncSuccess({ processedActionIds: result.processed })
+        );
+      }
+
+      if (result.failed?.length) {
+        store.dispatch(
+          syncFailure({
+            failedActionIds: result.failed,
+            error: result.message || 'Sync failed'
+          })
+        );
+      }
+
       await this.persistQueuedActions();
-      
     } catch (error) {
       console.error('Sync failed:', error);
       const failedIds = state.queuedActions.map(action => action.id);
-      store.dispatch(syncFailure({ 
-        failedActionIds: failedIds, 
-        error: 'Sync failed' 
-      }));
+      store.dispatch(
+        syncFailure({
+          failedActionIds: failedIds,
+          error: 'Sync failed'
+        })
+      );
     }
   }
 
